@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		EBCC04000000000000000001 /* ClinicalSyncOutbox.swift in Sources */ = {isa = PBXBuildFile; fileRef = EBCC04000000000000000002 /* ClinicalSyncOutbox.swift */; };
 		EBCC01000000000000000001 /* ClinicalRecords.swift in Sources */ = {isa = PBXBuildFile; fileRef = EBCC01000000000000000002 /* ClinicalRecords.swift */; };
 		EBCC02000000000000000001 /* ClinicalImageArchive.swift in Sources */ = {isa = PBXBuildFile; fileRef = EBCC02000000000000000002 /* ClinicalImageArchive.swift */; };
 		EBCC03000000000000000001 /* PublishedImageArchiveView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EBCC03000000000000000002 /* PublishedImageArchiveView.swift */; };
@@ -33,6 +34,7 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		EBCC04000000000000000002 /* ClinicalSyncOutbox.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClinicalSyncOutbox.swift; sourceTree = "<group>"; };
 		EBCC01000000000000000002 /* ClinicalRecords.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClinicalRecords.swift; sourceTree = "<group>"; };
 		EBCC02000000000000000002 /* ClinicalImageArchive.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClinicalImageArchive.swift; sourceTree = "<group>"; };
 		EBCC03000000000000000002 /* PublishedImageArchiveView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PublishedImageArchiveView.swift; sourceTree = "<group>"; };
@@ -53,6 +55,7 @@
 		EBAA03000000000000000002 /* ImagingFrameBuffer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImagingFrameBuffer.swift; sourceTree = "<group>"; };
 		EBAA04000000000000000002 /* RadiologyPlayback.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RadiologyPlayback.swift; sourceTree = "<group>"; };
 		EBAA05000000000000000002 /* BundledImagingDemo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BundledImagingDemo.swift; sourceTree = "<group>"; };
+		EBAA06000000000000000002 /* RadiologyDemo */ = {isa = PBXFileReference; lastKnownFileType = folder; path = RadiologyDemo; sourceTree = "<group>"; };
 		EBAA08000000000000000002 /* VaccinationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VaccinationView.swift; sourceTree = "<group>"; };
 		EBAA08000000000000000004 /* TravelVaccinationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TravelVaccinationView.swift; sourceTree = "<group>"; };
 		EBAA09000000000000000002 /* CareMessageCenter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CareMessageCenter.swift; sourceTree = "<group>"; };
@@ -100,9 +103,11 @@
 				77A9CC92194545D68DEB2E12 /* HealthProfileView.swift */,
 				B11A767460370FE748B7F69E /* HealthStore.swift */,
 				EBCC01000000000000000002 /* ClinicalRecords.swift */,
+				EBCC04000000000000000002 /* ClinicalSyncOutbox.swift */,
 				EBCC02000000000000000002 /* ClinicalImageArchive.swift */,
 				EBCC03000000000000000002 /* PublishedImageArchiveView.swift */,
 				EBAA05000000000000000002 /* BundledImagingDemo.swift */,
+				EBAA06000000000000000002 /* RadiologyDemo */,
 				EBAA03000000000000000002 /* ImagingFrameBuffer.swift */,
 				EBAA04000000000000000002 /* RadiologyPlayback.swift */,
 				EBAA02000000000000000002 /* RadiologyView.swift */,
@@ -129,6 +134,7 @@
 				878A52FC5FF6A57D50B7B870 /* Sources */,
 				E2AA269EB967A8853A258BFA /* Frameworks */,
 				41D311A605520FC7B8B9A980 /* Resources */,
+				EBAA07000000000000000001 /* Copy offline test images (Debug only) */,
 			);
 			buildRules = (
 			);
@@ -195,6 +201,32 @@
 		};
 /* End PBXResourcesBuildPhase section */
 
+/* Begin PBXShellScriptBuildPhase section */
+		EBAA07000000000000000001 /* Copy offline test images (Debug only) */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+				"$(SRCROOT)/scripts/radiology-demo-inputs.xcfilelist",
+			);
+			inputPaths = (
+				"$(SRCROOT)/scripts/copy-radiology-demo.sh",
+			);
+			name = "Copy offline test images (Debug only)";
+			outputFileListPaths = (
+				"$(SRCROOT)/scripts/radiology-demo-outputs.xcfilelist",
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "/bin/sh \"${SRCROOT}/scripts/copy-radiology-demo.sh\"";
+			showEnvVarsInLog = 0;
+		};
+/* End PBXShellScriptBuildPhase section */
+
 /* Begin PBXSourcesBuildPhase section */
 		878A52FC5FF6A57D50B7B870 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
@@ -215,6 +247,7 @@
 				EBAA0A000000000000000001 /* HealthSummaryView.swift in Sources */,
 				EBFF01000000000000000001 /* Spirometry.swift in Sources */,
 				EBCC01000000000000000001 /* ClinicalRecords.swift in Sources */,
+				EBCC04000000000000000001 /* ClinicalSyncOutbox.swift in Sources */,
 				EBCC02000000000000000001 /* ClinicalImageArchive.swift in Sources */,
 				EBCC03000000000000000001 /* PublishedImageArchiveView.swift in Sources */,
 				AABBCCDDEE00000000000001 /* RecoveryDemoView.swift in Sources */,
@@ -250,6 +283,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = Z8AA7G5KGA;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_NO_COMMON_BLOCKS = YES;
@@ -275,7 +309,7 @@
 				CLANG_ENABLE_OBJC_WEAK = YES;
 				CODE_SIGN_ENTITLEMENTS = GoHealth/GoHealth.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 3;
+				CURRENT_PROJECT_VERSION = 1;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "GoHealth/Info-Debug.plist";
@@ -322,6 +356,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = Z8AA7G5KGA;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
@@ -349,7 +384,7 @@
 				CLANG_ENABLE_OBJC_WEAK = YES;
 				CODE_SIGN_ENTITLEMENTS = GoHealth/GoHealth.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 3;
+				CURRENT_PROJECT_VERSION = 1;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = GoHealth/Info.plist;

@@ -2,6 +2,14 @@ import Foundation
 import HealthKit
 import Combine
 
+struct PortalQuantityDefinition {
+    let id: String
+    let title: String
+    let type: HKQuantityType
+    let unit: HKUnit
+    let unitLabel: String
+    let cumulative: Bool
+}
 struct HealthReading: Identifiable {
     let id: String
     let section: String
@@ -54,6 +62,12 @@ final class HealthStore: ObservableObject {
     @Published var isLoading = false
     @Published var message = "Hämtar mätningar från Apple Hälsa…"
 
+    var onMeasurementsChanged: (() -> Void)?
+    var portalQuantityDefinitions: [PortalQuantityDefinition] {
+        latestMetrics.map { .init(id: $0.id, title: $0.title, type: $0.type, unit: $0.unit, unitLabel: $0.unitLabel, cumulative: false) }
+        + dailyMetrics.map { .init(id: $0.id, title: $0.title, type: $0.type, unit: $0.unit, unitLabel: $0.unitLabel, cumulative: true) }
+    }
+    var portalSampleTypes: [HKSampleType] { readTypes.compactMap { $0 as? HKSampleType } }
     let isBeta: Bool
     private let store = HKHealthStore()
     private let sleepType = HKCategoryType(.sleepAnalysis)
@@ -261,6 +275,7 @@ final class HealthStore: ObservableObject {
         repeat {
             refreshPending = false
             await readAll()
+            onMeasurementsChanged?()
         } while refreshPending
     }
 
@@ -276,6 +291,7 @@ final class HealthStore: ObservableObject {
                 }
             }
             store.execute(query)
+            store.enableBackgroundDelivery(for: sampleType, frequency: .immediate) { _, _ in }
             return query
         }
     }
@@ -668,3 +684,4 @@ final class HealthStore: ObservableObject {
     private func oneDecimal(_ value: Double) -> String { value.formatted(.number.precision(.fractionLength(1))) }
     private func twoDecimals(_ value: Double) -> String { value.formatted(.number.precision(.fractionLength(2))) }
 }
+

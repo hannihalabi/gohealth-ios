@@ -80,11 +80,25 @@ struct ClinicalVitalSample: Encodable {
     let end_at: String
     let source: String
     let definition: String
-    var calendar_day: String? = nil
+    let metadata: ClinicalPortalMetadata
+}
+struct ClinicalPortalMetadata: Encodable {
+    let title: String
+    let display_unit: String
+    let healthkit_type: String
+    let source_bundle: String
+    let source_version: String?
+    let device_id: String?
+    let user_entered: Bool
+    let sample_class: String
+    var category_value: Int? = nil
+    var workout_activity: UInt? = nil
 }
 struct ClinicalVitalsBatch: Encodable {
-    let p_samples: [ClinicalVitalSample]
-    let p_deleted: [UUID]
+    var p_samples: [ClinicalVitalSample] = []
+    var p_deleted: [UUID] = []
+    var p_display: [ClinicalDisplayValue] = []
+    var p_state: String = "syncing"
 }
 
 @MainActor
@@ -94,12 +108,6 @@ final class ClinicalStore: ObservableObject {
     @Published private(set) var error: String?
     @Published private(set) var syncMessage: String?
     @Published private(set) var isSyncing = false
-    @Published var sharingEnabled: Bool {
-        didSet { preferences.set(sharingEnabled, forKey: "clinicalSharing.\(accountID)") }
-    }
-    @Published var stepSharingEnabled: Bool {
-        didSet { preferences.set(stepSharingEnabled, forKey: "clinicalStepSharing.\(accountID)") }
-    }
     private let accountID: UUID
     private let isBeta: Bool
     private let preferences = UserDefaults.standard
@@ -107,17 +115,26 @@ final class ClinicalStore: ObservableObject {
     private let upload: (ClinicalVitalsBatch) async throws -> Void
     let downloadArchive: (ClinicalArchiveAttachment) async throws -> Data
     private let health = HKHealthStore()
+    private weak var source: HealthStore?
+    private var outbox: ClinicalSyncOutbox?
+    private var syncPending = false
+    private var retry: Task<Void, Never>?
 
     init(accountID: UUID, isBeta: Bool, fetch: @escaping () async throws -> ClinicalEnvelope,
          upload: @escaping (ClinicalVitalsBatch) async throws -> Void,
          downloadArchive: @escaping (ClinicalArchiveAttachment) async throws -> Data) {
         self.accountID = accountID; self.isBeta = isBeta; self.fetch = fetch; self.upload = upload
         self.downloadArchive = downloadArchive
-        self.sharingEnabled = !isBeta && UserDefaults.standard.bool(forKey: "clinicalSharing.\(accountID)")
-        self.stepSharingEnabled = !isBeta && UserDefaults.standard.bool(forKey: "clinicalStepSharing.\(accountID)")
     }
+    deinit { retry?.cancel() }
     var imageRecords: [ClinicalRecord] { records.filter { $0.imageArchive != nil } }
-
+    func attach(to source: HealthStore) {
+        guard !isBeta, !source.isBeta else { return }
+        self.source = source
+        source.onMeasurementsChanged = { [weak self] in
+            Task { await self?.sync() }
+        }
+    }
     func refresh() async {
         guard !isBeta, !isLoading else { return }
         isLoading = true; defer { isLoading = false }
@@ -127,184 +144,156 @@ final class ClinicalStore: ObservableObject {
             records = result.records.sorted { ($0.payload.date ?? .distantPast) > ($1.payload.date ?? .distantPast) }
             error = nil
         } catch {
-            if !Task.isCancelled { self.error = "Svar kunde inte hämtas. Ditt konto behöver en verifierad koppling hos vårdteamet. Försök igen eller kontakta mottagningen." }
+            if !Task.isCancelled { self.error = "Svar kunde inte hämtas. Kontrollera din kontokoppling och försök igen." }
         }
     }
     func sync() async {
-        guard !isBeta, (sharingEnabled || stepSharingEnabled), !isSyncing,
-              HKHealthStore.isHealthDataAvailable() else { return }
-        isSyncing = true; defer { isSyncing = false }
+        guard !isBeta, let source, !source.isBeta, HKHealthStore.isHealthDataAvailable() else { return }
+        if isSyncing { syncPending = true; return }
+        retry?.cancel(); retry = nil
+        isSyncing = true
+        defer {
+            isSyncing = false
+            if syncPending && !Task.isCancelled { Task { [weak self] in await self?.sync() } }
+        }
+        var failures: [String] = []
         do {
-            let types: [HKSampleType] = [HKQuantityType(.heartRate), HKQuantityType(.restingHeartRate), HKCategoryType(.sleepAnalysis)]
-            let steps = HKQuantityType(.stepCount)
-            let shareSamples = sharingEnabled
-            let shareSteps = stepSharingEnabled
-            var readTypes = Set<HKObjectType>(shareSamples ? types : [])
-            if shareSteps { readTypes.insert(steps) }
-            try await health.requestAuthorization(toShare: [], read: readTypes)
-            if shareSamples && sharingEnabled { try await syncSamples(types) }
-            if shareSteps && stepSharingEnabled {
-                let daily = try await dailyStepSamples(type: steps)
-                try Task.checkCancellation()
-                if stepSharingEnabled && !daily.isEmpty {
-                    try await upload(ClinicalVitalsBatch(p_samples: daily, p_deleted: []))
-                }
-                if stepSharingEnabled && daily.isEmpty {
-                    syncMessage = shareSamples && sharingEnabled
-                        ? "Övriga mätningar är uppdaterade. Inga läsbara steg hittades i Apple Hälsa."
-                        : "Inga läsbara steg hittades i Apple Hälsa."
-                    return
-                }
-            }
-            syncMessage = "Delade mätningar är uppdaterade. Bara läsbara värden från Apple Hälsa kan delas."
-        } catch {
-            if !Task.isCancelled { syncMessage = "Delningen kunde inte slutföras. Redan mottagna mätningar dubbleras inte vid nästa försök. Kontrollera kontokopplingen och nätverket." }
-        }
-    }
-    private func syncSamples(_ types: [HKSampleType]) async throws {
-        // Keep the predicate fixed for existing anchors and checkpoint after upload.
-        let startKey = "clinicalSyncStart.\(accountID)"
-        let start = preferences.object(forKey: startKey) as? Date ?? Date().addingTimeInterval(-90 * 86400)
-        preferences.set(start, forKey: startKey)
-        for type in types {
-            let key = "clinicalAnchor.\(accountID).\(type.identifier)"
-            var anchor: HKQueryAnchor?
-            if let data = preferences.data(forKey: key) {
-                anchor = try NSKeyedUnarchiver.unarchivedObject(ofClass: HKQueryAnchor.self, from: data)
-            }
-            var more = true
-            while more {
-                try Task.checkCancellation()
-                guard sharingEnabled else { return }
-                let page = try await readPage(type: type, anchor: anchor, start: start)
-                let samples = page.0.compactMap(Self.convert)
-                try Task.checkCancellation()
-                guard sharingEnabled else { return }
-                try await upload(ClinicalVitalsBatch(p_samples: samples, p_deleted: page.1.map(\.uuid)))
-                if let next = page.2 {
-                    let data = try NSKeyedArchiver.archivedData(withRootObject: next, requiringSecureCoding: true)
-                    preferences.set(data, forKey: key)
-                }
-                anchor = page.2
-                more = page.0.count + page.1.count >= 500
-            }
-        }
-    }
-
-    private func dailyStepSamples(type: HKQuantityType) async throws -> [ClinicalVitalSample] {
-        let now = Date()
-        let timeZoneKey = "clinicalStepTimeZone.\(accountID)"
-        let timeZone = preferences.string(forKey: timeZoneKey).flatMap(TimeZone.init(identifier:)) ?? .current
-        preferences.set(timeZone.identifier, forKey: timeZoneKey)
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = timeZone
-        let today = calendar.startOfDay(for: now)
-        guard let start = calendar.date(byAdding: .day, value: -89, to: today) else { return [] }
-        let interval = DateComponents(calendar: calendar, timeZone: timeZone, day: 1)
-        let predicate = HKQuery.predicateForSamples(withStart: start, end: now)
-        return try await withCheckedThrowingContinuation { continuation in
-            let query = HKStatisticsCollectionQuery(
-                quantityType: type, quantitySamplePredicate: predicate,
-                options: .cumulativeSum, anchorDate: today, intervalComponents: interval
-            )
-            query.initialResultsHandler = { _, collection, error in
-                if let error {
-                    let nsError = error as NSError
-                    if nsError.domain == HKErrorDomain && nsError.code == HKError.Code.errorNoData.rawValue {
-                        continuation.resume(returning: [])
-                    } else {
-                        continuation.resume(throwing: error)
+            if outbox == nil { outbox = try ClinicalSyncOutbox(accountID: accountID) }
+            repeat {
+                syncPending = false
+                try enqueueDisplayValues(source)
+                try await flushDisplayValues()
+                var pending = source.portalSampleTypes
+                let descriptors = Dictionary(source.portalQuantityDefinitions.map { ($0.type.identifier, $0) }, uniquingKeysWith: { first, _ in first })
+                while !pending.isEmpty {
+                    var remaining: [HKSampleType] = []
+                    for type in pending {
+                        try Task.checkCancellation()
+                        do {
+                            let key = "clinicalAutomaticAnchor.v3.\(accountID).\(type.identifier)"
+                            let anchor = try preferences.data(forKey: key).flatMap { try NSKeyedUnarchiver.unarchivedObject(ofClass: HKQueryAnchor.self, from: $0) }
+                            let page = try await readPage(type: type, anchor: anchor)
+                            let fallbackUnits: [HKQuantityType: HKUnit]
+                            if let quantity = type as? HKQuantityType, descriptors[type.identifier] == nil {
+                                fallbackUnits = try await health.preferredUnits(for: Set([quantity]))
+                            } else { fallbackUnits = [:] }
+                            let samples = try page.0.map { try Self.convert($0, descriptor: descriptors[$0.sampleType.identifier], fallbackUnits: fallbackUnits) }
+                            try Task.checkCancellation()
+                            try await upload(ClinicalVitalsBatch(p_samples: samples, p_deleted: page.1.map(\.uuid)))
+                            if let next = page.2 {
+                                preferences.set(try NSKeyedArchiver.archivedData(withRootObject: next, requiringSecureCoding: true), forKey: key)
+                            }
+                            if page.0.count + page.1.count >= 500 { remaining.append(type) }
+                        } catch is CancellationError { throw CancellationError() }
+                        catch { failures.append(type.identifier) }
+                        // Below the shared account request limit. No age restriction.
+                        try await Task.sleep(for: .milliseconds(800))
                     }
-                    return
+                    pending = remaining
+                    try enqueueDisplayValues(source)
+                    try await flushDisplayValues()
                 }
-                var samples: [ClinicalVitalSample] = []
-                let formatter = ISO8601DateFormatter()
-                let dayFormatter = DateFormatter()
-                dayFormatter.locale = Locale(identifier: "en_US_POSIX")
-                dayFormatter.calendar = Calendar(identifier: .gregorian)
-                dayFormatter.timeZone = timeZone
-                dayFormatter.dateFormat = "yyyy-MM-dd"
-                collection?.enumerateStatistics(from: start, to: now) { statistics, _ in
-                    guard let quantity = statistics.sumQuantity() else { return }
-                    let value = quantity.doubleValue(for: .count()).rounded()
-                    let end = min(now, statistics.endDate)
-                    guard value.isFinite, (0..<1_000_000).contains(value),
-                          end.timeIntervalSince(statistics.startDate) >= 1 else { return }
-                    let day = dayFormatter.string(from: statistics.startDate)
-                    samples.append(ClinicalVitalSample(
-                        source_id: Self.stepDayID(day), kind: "steps", value: value, unit: "count",
-                        start_at: formatter.string(from: statistics.startDate), end_at: formatter.string(from: end),
-                        source: "Apple Hälsa", definition: "steps-daily", calendar_day: day
-                    ))
+            } while syncPending && failures.isEmpty
+            if failures.isEmpty {
+                try await upload(ClinicalVitalsBatch(p_state: "complete"))
+                syncMessage = "Appens läsbara mätvärden och historik är synkroniserade till vårdteamet."
+            } else { throw URLError(.cannotLoadFromNetwork) }
+        } catch {
+            try? await upload(ClinicalVitalsBatch(p_state: "retrying"))
+            syncMessage = "Synkningen är inte klar. Väntande värden sparas och försöks igen automatiskt. " + (failures.isEmpty ? error.localizedDescription : "Kunde inte slutföra \(Set(failures).count) datatyper.")
+            if !Task.isCancelled {
+                retry = Task { [weak self] in
+                    do { try await Task.sleep(for: .seconds(60)); guard let self else { return }; self.retry = nil; await self.sync() } catch {}
                 }
-                continuation.resume(returning: samples)
             }
-            health.execute(query)
         }
     }
-
-    // A day keeps the same ID when its total changes, so a new sync replaces the day's value.
-    nonisolated private static func stepDayID(_ day: String) -> UUID {
-        let key = "gohealth.steps-daily.\(day)"
-        var bytes = Array(SHA256.hash(data: Data(key.utf8)).prefix(16))
-        bytes[6] = (bytes[6] & 0x0f) | 0x80
-        bytes[8] = (bytes[8] & 0x3f) | 0x80
-        return UUID(uuid: (bytes[0], bytes[1], bytes[2], bytes[3], bytes[4], bytes[5], bytes[6], bytes[7],
-                           bytes[8], bytes[9], bytes[10], bytes[11], bytes[12], bytes[13], bytes[14], bytes[15]))
+    private func enqueueDisplayValues(_ source: HealthStore) throws {
+        let formatter = ISO8601DateFormatter(); formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]; let now = formatter.string(from: Date())
+        var values = source.readings.map { reading in
+            ClinicalDisplayValue(event_id: UUID(), key: reading.id, display_kind: "current", title: reading.title,
+                section: reading.section, value: reading.value, unit: reading.unit, source: reading.detail,
+                measured_at: nil, observed_at: now)
+        }
+        // Raw quantities already have full HealthKit history. Derived/app-only
+        // histories are discovered from the same dictionary used by the UI.
+        let rawIDs = Set(source.portalQuantityDefinitions.map(\.id))
+        for (key, entries) in source.metricHistory where !rawIDs.contains(key) {
+            let reading = source.readings.first { $0.id == key }
+            values += entries.map { entry in
+                ClinicalDisplayValue(event_id: UUID(), key: key, display_kind: "history", title: reading?.title ?? key,
+                    section: reading?.section ?? "Appvärden", value: entry.value, unit: reading?.unit ?? "",
+                    source: entry.detail, measured_at: formatter.string(from: entry.date), observed_at: now, record_id: entry.id)
+            }
+        }
+        try outbox?.enqueue(values)
     }
-    private func readPage(type: HKSampleType, anchor: HKQueryAnchor?, start: Date) async throws -> ([HKSample], [HKDeletedObject], HKQueryAnchor?) {
+    private func flushDisplayValues() async throws {
+        while let page = outbox?.page(), !page.isEmpty {
+            try Task.checkCancellation()
+            try await upload(ClinicalVitalsBatch(p_display: page))
+            try outbox?.acknowledge(page)
+            try await Task.sleep(for: .milliseconds(800))
+        }
+    }
+    private func readPage(type: HKSampleType, anchor: HKQueryAnchor?) async throws -> ([HKSample], [HKDeletedObject], HKQueryAnchor?) {
         try await withCheckedThrowingContinuation { continuation in
-            let query = HKAnchoredObjectQuery(type: type, predicate: HKQuery.predicateForSamples(withStart: start, end: nil), anchor: anchor, limit: 500) { _, samples, deleted, next, error in
+            let query = HKAnchoredObjectQuery(type: type, predicate: nil, anchor: anchor, limit: 500) { _, samples, deleted, next, error in
                 if let error { continuation.resume(throwing: error) }
                 else { continuation.resume(returning: (samples ?? [], deleted ?? [], next)) }
             }
             health.execute(query)
         }
     }
-    private static func convert(_ sample: HKSample) -> ClinicalVitalSample? {
-        guard (sample.metadata?[HKMetadataKeyWasUserEntered] as? Bool) != true else { return nil }
-        let kind: String; let value: Double?; let unit: String; let definition: String
+    private static func convert(_ sample: HKSample, descriptor: PortalQuantityDefinition?, fallbackUnits: [HKQuantityType: HKUnit]) throws -> ClinicalVitalSample {
+        var kind: String; let value: Double?; let unit: String; let definition: String
+        var title = descriptor?.title ?? sample.sampleType.identifier
+        var metadata = ClinicalPortalMetadata(title: title, display_unit: descriptor?.unitLabel ?? "",
+            healthkit_type: sample.sampleType.identifier, source_bundle: sample.sourceRevision.source.bundleIdentifier,
+            source_version: sample.sourceRevision.version, device_id: sample.device?.localIdentifier,
+            user_entered: sample.metadata?[HKMetadataKeyWasUserEntered] as? Bool ?? false, sample_class: String(describing: type(of: sample)))
         if let quantity = sample as? HKQuantitySample {
-            kind = quantity.quantityType.identifier == HKQuantityTypeIdentifier.heartRate.rawValue ? "heart-rate" : "resting-heart-rate"
-            let number = quantity.quantity.doubleValue(for: .count().unitDivided(by: .minute()))
-            guard number.isFinite, number > 0, number < 1000 else { return nil }
-            value = number; unit = "beats/min"; definition = kind
-        } else if let sleep = sample as? HKCategorySample {
-            let asleep = [HKCategoryValueSleepAnalysis.asleepUnspecified.rawValue, HKCategoryValueSleepAnalysis.asleepCore.rawValue, HKCategoryValueSleepAnalysis.asleepDeep.rawValue, HKCategoryValueSleepAnalysis.asleepREM.rawValue]
-            guard asleep.contains(sleep.value) else { return nil }
-            kind = "sleep"; value = nil; unit = "interval"; definition = "asleep"
-        } else { return nil }
+            guard let hkUnit = descriptor?.unit ?? fallbackUnits[quantity.quantityType] else { throw URLError(.cannotDecodeContentData) }
+            var number = quantity.quantity.doubleValue(for: hkUnit)
+            if hkUnit == .percent() { number *= 100 }
+            guard number.isFinite else { throw URLError(.cannotDecodeContentData) }
+            kind = descriptor.map { ($0.cumulative ? "raw." : "") + $0.id } ?? quantity.quantityType.identifier
+            unit = descriptor?.unitLabel ?? hkUnit.unitString
+            if descriptor?.cumulative == true { title += " – råmätningar" }
+            value = number; definition = kind
+        } else if let category = sample as? HKCategorySample {
+            metadata.category_value = category.value
+            if category.categoryType == HKCategoryType(.sleepAnalysis) {
+                let stages = [HKCategoryValueSleepAnalysis.asleepUnspecified.rawValue: "asleep-unspecified", HKCategoryValueSleepAnalysis.asleepCore.rawValue: "asleep-core", HKCategoryValueSleepAnalysis.asleepDeep.rawValue: "asleep-deep", HKCategoryValueSleepAnalysis.asleepREM.rawValue: "asleep-rem"]
+                if let stage = stages[category.value] { kind = "sleep"; title = "Registrerad sömn"; value = nil; unit = "interval"; definition = stage }
+                else if category.value == HKCategoryValueSleepAnalysis.awake.rawValue || category.value == HKCategoryValueSleepAnalysis.inBed.rawValue {
+                    kind = category.value == HKCategoryValueSleepAnalysis.awake.rawValue ? "sleep-awake" : "sleep-in-bed"; title = kind == "sleep-awake" ? "Vaken under sömnregistrering" : "Tid i säng"; value = nil; unit = "interval"; definition = kind
+                } else { kind = "sleep-other"; title = "Sömn – övrig registrering"; value = Double(category.value); unit = "category"; definition = kind }
+            } else { kind = category.categoryType.identifier; value = Double(category.value); unit = "category"; definition = kind }
+        } else if let workout = sample as? HKWorkout {
+            kind = "workout"; title = "Träningspass"; value = workout.duration / 60; unit = "min"; definition = kind
+            metadata.workout_activity = workout.workoutActivityType.rawValue
+        } else { throw URLError(.cannotDecodeContentData) }
+        metadata = ClinicalPortalMetadata(title: title, display_unit: unit == "interval" ? "" : unit,
+            healthkit_type: metadata.healthkit_type, source_bundle: metadata.source_bundle,
+            source_version: metadata.source_version, device_id: metadata.device_id,
+            user_entered: metadata.user_entered, sample_class: metadata.sample_class,
+            category_value: metadata.category_value, workout_activity: metadata.workout_activity)
         let formatter = ISO8601DateFormatter()
         return ClinicalVitalSample(source_id: sample.uuid, kind: kind, value: value, unit: unit,
             start_at: formatter.string(from: sample.startDate), end_at: formatter.string(from: sample.endDate),
-            source: "\(sample.sourceRevision.source.name) · \(sample.sourceRevision.source.bundleIdentifier)", definition: definition)
+            source: "\(sample.sourceRevision.source.name) · \(sample.sourceRevision.source.bundleIdentifier)", definition: definition, metadata: metadata)
     }
 }
 
 struct ClinicalRecordsView: View {
     @ObservedObject var store: ClinicalStore
-    @State private var showSharingConfirmation = false
-    @State private var showStepSharingConfirmation = false
     var body: some View {
         List {
-            Section("Dela mätningar med vårdteamet") {
-                Toggle("Dela puls, vilopuls och sömn", isOn: Binding(get: { store.sharingEnabled }, set: { enabled in
-                    if enabled { showSharingConfirmation = true } else { store.sharingEnabled = false }
-                }))
-                Toggle("Dela steg per dag", isOn: Binding(get: { store.stepSharingEnabled }, set: { enabled in
-                    if enabled { showStepSharingConfirmation = true } else { store.stepSharingEnabled = false }
-                }))
-                .confirmationDialog("Dela steg med vårdteamet?", isPresented: $showStepSharingConfirmation, titleVisibility: .visible) {
-                    Button("Dela mina steg") { store.stepSharingEnabled = true; Task { await store.sync() } }
-                    Button("Avbryt", role: .cancel) {}
-                } message: {
-                    Text("Dagliga stegsummor från de senaste 90 dagarna överförs från Apple Hälsa till GoHealth och kan läsas av ditt behöriga vårdteam.")
-                }
-                Text("Vid första delningen hämtas högst 90 dagars läsbar historik. Mätningarna uppdateras när appen är öppen. Vårdteamet behöver ha verifierat din kontokoppling. När du stänger av ett val stoppas nästa överföring av den typen. Tidigare delade mätningar finns kvar.").font(.caption).foregroundStyle(.secondary)
-                if store.sharingEnabled || store.stepSharingEnabled {
-                    Button(store.isSyncing ? "Synkroniserar…" : "Uppdatera delade mätningar") { Task { await store.sync() } }.disabled(store.isSyncing)
-                }
+            Section("Automatisk synkning till vårdteamet") {
+                Text("Alla appens läsbara mätvärden och hela den tillgängliga historiken delas automatiskt. Nya mätvärden följer med utan separata val.")
                 if let message = store.syncMessage { Text(message).font(.caption) }
+                Button(store.isSyncing ? "Synkroniserar…" : "Försök synkronisera nu") { Task { await store.sync() } }.disabled(store.isSyncing)
             }
             if let error = store.error { Section { Text(error).foregroundStyle(.secondary); Button("Försök igen") { Task { await store.refresh() } } } }
             if store.isLoading { ProgressView("Hämtar svar…") }
@@ -338,9 +327,6 @@ struct ClinicalRecordsView: View {
         .navigationTitle("Svar från vårdteamet")
         .task { await store.refresh() }
         .refreshable { await store.refresh() }
-        .confirmationDialog("Dela hälsomätningar?", isPresented: $showSharingConfirmation, titleVisibility: .visible) {
-            Button("Aktivera delning till mitt vårdteam") { store.sharingEnabled = true; Task { await store.sync() } }
-            Button("Avbryt", role: .cancel) {}
-        } message: { Text("Puls, vilopuls och registrerade sömnintervall överförs från din iPhone till GoHealths backend och kan läsas av ditt behöriga vårdteam. Anslut bara om uppgifterna på den här iPhonen är dina.") }
+
     }
 }

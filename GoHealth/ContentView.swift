@@ -560,7 +560,7 @@ struct ContentView: View {
         } message: {
             Text(isBeta
                  ? "I Beta-login simuleras anslutningen till Apple Hälsa med en testprofil."
-                 : "GoHealth visar dina mätningar och läser biologiskt kön från Apple Hälsa för att visa kroppsfiguren. Anslut bara om uppgifterna på den här iPhonen är dina.")
+                 : "GoHealth läser dina hälsomätningar och delar automatiskt appens mätvärden och tillgängliga historik med ditt behöriga vårdteam. Nya mätvärden följer också med. Biologiskt kön används för kroppsfiguren. Anslut bara om uppgifterna på den här iPhonen är dina.")
         }
         .onOpenURL { url in
             if url.scheme == "gohealth" && url.host == "recovery" { selectedTab = .recovery }
@@ -673,7 +673,7 @@ struct ContentView: View {
         .task(id: scenePhase) {
             guard scenePhase == .active, !isBeta else { return }
             await clinical.refresh()
-            await clinical.sync()
+            if healthLinked { clinical.attach(to: health); await clinical.sync() }
         }
         .onPreferenceChange(HomePanelFramePreference.self) { frames in
             if homePanel == nil {
@@ -713,7 +713,9 @@ struct ContentView: View {
 
     private func syncHealth() async {
         guard healthLinked, !health.isLoading else { return }
+        clinical.attach(to: health)
         await health.connect()
+        await clinical.sync()
         refreshBodyAppearance()
     }
 
@@ -2516,3 +2518,4 @@ struct MetricHistoryView: View {
         .overlay { if health.isLoading { ProgressView("Hämtar historik…") } }
     }
 }
+
