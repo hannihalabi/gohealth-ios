@@ -1,0 +1,10 @@
+DerivedData/
+xcuserdata/
+*.xcuserstate
+.env
+.env.*
+*.mobileprovision
+*.p12
+*.xcconfig
+GoHealth/RadiologyDemo/
+.DS_Store

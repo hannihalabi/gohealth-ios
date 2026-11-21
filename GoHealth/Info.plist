@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>se.hemlakare.gohealth.demo</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>gohealth</string>
+			</array>
+		</dict>
+	</array>
+	<key>GoHealthImagingAPIURL</key>
+	<string>$(GOHEALTH_IMAGING_API_URL)</string>
+	<key>NSCameraUsageDescription</key>
+	<string>GoHealth använder kameran för tre helkroppsbilder till din 3D-avatar. Bilderna bearbetas på den här iPhonen.</string>
+	<key>UILaunchScreen</key>
+	<dict/>
+	<key>GoHealthSupabaseURL</key>
+	<string>$(GOHEALTH_SUPABASE_URL)</string>
+	<key>GoHealthSupabasePublishableKey</key>
+	<string>$(GOHEALTH_SUPABASE_PUBLISHABLE_KEY)</string>
+</dict>
+</plist>

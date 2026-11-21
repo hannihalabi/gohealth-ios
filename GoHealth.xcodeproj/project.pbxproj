@@ -1,0 +1,417 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		EBCC01000000000000000001 /* ClinicalRecords.swift in Sources */ = {isa = PBXBuildFile; fileRef = EBCC01000000000000000002 /* ClinicalRecords.swift */; };
+		EBCC02000000000000000001 /* ClinicalImageArchive.swift in Sources */ = {isa = PBXBuildFile; fileRef = EBCC02000000000000000002 /* ClinicalImageArchive.swift */; };
+		EBCC03000000000000000001 /* PublishedImageArchiveView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EBCC03000000000000000002 /* PublishedImageArchiveView.swift */; };
+		0B429B75309EC6A700FB37C4 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 0B429B74309EC6A700FB37C4 /* Assets.xcassets */; };
+		0B429B78309ED06100FB37C4 /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = 0B429B77309ED06100FB37C4 /* Supabase */; };
+		0B429B7B309F76EF00FB37C4 /* BodyAvatarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0B429B7A309F76EF00FB37C4 /* BodyAvatarView.swift */; };
+		0B429B7C309F76EF00FB37C4 /* BodyAvatarReconstruction.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0B429B79309F76EF00FB37C4 /* BodyAvatarReconstruction.swift */; };
+		5454CB6899A34E87BFE62A09 /* OrganOverview.swift in Sources */ = {isa = PBXBuildFile; fileRef = 42F2884382EF4AF9A2600B1B /* OrganOverview.swift */; };
+		77A9CC92194545D68DEB2E13 /* HealthProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 77A9CC92194545D68DEB2E12 /* HealthProfileView.swift */; };
+		8C8EB49CE6C2C8776E03C2A5 /* GoHealthApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7BDDAC7396179DD314B22D66 /* GoHealthApp.swift */; };
+		A92BFF5798A1B873927D850A /* HealthStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B11A767460370FE748B7F69E /* HealthStore.swift */; };
+		AABBCCDDEE00000000000001 /* RecoveryDemoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AABBCCDDEE00000000000002 /* RecoveryDemoView.swift */; };
+		AABBCCDDEE00000000000003 /* RecoveryDemo in Resources */ = {isa = PBXBuildFile; fileRef = AABBCCDDEE00000000000004 /* RecoveryDemo */; };
+		D5B3906592863DD33AFC5412 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C4D5BF81259353996C99C21 /* ContentView.swift */; };
+		EBAA02000000000000000001 /* RadiologyView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EBAA02000000000000000002 /* RadiologyView.swift */; };
+		EBAA03000000000000000001 /* ImagingFrameBuffer.swift in Sources */ = {isa = PBXBuildFile; fileRef = EBAA03000000000000000002 /* ImagingFrameBuffer.swift */; };
+		EBAA04000000000000000001 /* RadiologyPlayback.swift in Sources */ = {isa = PBXBuildFile; fileRef = EBAA04000000000000000002 /* RadiologyPlayback.swift */; };
+		EBAA05000000000000000001 /* BundledImagingDemo.swift in Sources */ = {isa = PBXBuildFile; fileRef = EBAA05000000000000000002 /* BundledImagingDemo.swift */; };
+		EBAA08000000000000000001 /* VaccinationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EBAA08000000000000000002 /* VaccinationView.swift */; };
+		EBAA08000000000000000003 /* TravelVaccinationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EBAA08000000000000000004 /* TravelVaccinationView.swift */; };
+		EBAA09000000000000000001 /* CareMessageCenter.swift in Sources */ = {isa = PBXBuildFile; fileRef = EBAA09000000000000000002 /* CareMessageCenter.swift */; };
+		EBAA0A000000000000000001 /* HealthSummaryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EBAA0A000000000000000002 /* HealthSummaryView.swift */; };
+		EBFF01000000000000000001 /* Spirometry.swift in Sources */ = {isa = PBXBuildFile; fileRef = EBFF01000000000000000002 /* Spirometry.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		EBCC01000000000000000002 /* ClinicalRecords.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClinicalRecords.swift; sourceTree = "<group>"; };
+		EBCC02000000000000000002 /* ClinicalImageArchive.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClinicalImageArchive.swift; sourceTree = "<group>"; };
+		EBCC03000000000000000002 /* PublishedImageArchiveView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PublishedImageArchiveView.swift; sourceTree = "<group>"; };
+		0B429B74309EC6A700FB37C4 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		0B429B79309F76EF00FB37C4 /* BodyAvatarReconstruction.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BodyAvatarReconstruction.swift; sourceTree = "<group>"; };
+		0B429B7A309F76EF00FB37C4 /* BodyAvatarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BodyAvatarView.swift; sourceTree = "<group>"; };
+		3C4D5BF81259353996C99C21 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		42F2884382EF4AF9A2600B1B /* OrganOverview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OrganOverview.swift; sourceTree = "<group>"; };
+		77A9CC92194545D68DEB2E12 /* HealthProfileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthProfileView.swift; sourceTree = "<group>"; };
+		7BDDAC7396179DD314B22D66 /* GoHealthApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoHealthApp.swift; sourceTree = "<group>"; };
+		9AC3B5AD93CBC0305C62F78F /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		A172CEDCAE47474B615C54D5 /* GoHealth.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = GoHealth.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		AABBCCDDEE00000000000002 /* RecoveryDemoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecoveryDemoView.swift; sourceTree = "<group>"; };
+		AABBCCDDEE00000000000004 /* RecoveryDemo */ = {isa = PBXFileReference; lastKnownFileType = folder; path = RecoveryDemo; sourceTree = "<group>"; };
+		B11A767460370FE748B7F69E /* HealthStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthStore.swift; sourceTree = "<group>"; };
+		D696C7787D83ED53626ACDA4 /* GoHealth.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = GoHealth.entitlements; sourceTree = "<group>"; };
+		EBAA02000000000000000002 /* RadiologyView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RadiologyView.swift; sourceTree = "<group>"; };
+		EBAA03000000000000000002 /* ImagingFrameBuffer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImagingFrameBuffer.swift; sourceTree = "<group>"; };
+		EBAA04000000000000000002 /* RadiologyPlayback.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RadiologyPlayback.swift; sourceTree = "<group>"; };
+		EBAA05000000000000000002 /* BundledImagingDemo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BundledImagingDemo.swift; sourceTree = "<group>"; };
+		EBAA08000000000000000002 /* VaccinationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VaccinationView.swift; sourceTree = "<group>"; };
+		EBAA08000000000000000004 /* TravelVaccinationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TravelVaccinationView.swift; sourceTree = "<group>"; };
+		EBAA09000000000000000002 /* CareMessageCenter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CareMessageCenter.swift; sourceTree = "<group>"; };
+		EBAA0A000000000000000002 /* HealthSummaryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthSummaryView.swift; sourceTree = "<group>"; };
+		EBFF01000000000000000002 /* Spirometry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Spirometry.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		E2AA269EB967A8853A258BFA /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				0B429B78309ED06100FB37C4 /* Supabase in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		0A3E27B8CA818264D75C8D81 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				A172CEDCAE47474B615C54D5 /* GoHealth.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		0D6E4079E36703EBD37C0072 = {
+			isa = PBXGroup;
+			children = (
+				41CF6794BA4200B839C53531 /* GoHealth */,
+				0A3E27B8CA818264D75C8D81 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		41CF6794BA4200B839C53531 /* GoHealth */ = {
+			isa = PBXGroup;
+			children = (
+				0B429B79309F76EF00FB37C4 /* BodyAvatarReconstruction.swift */,
+				0B429B7A309F76EF00FB37C4 /* BodyAvatarView.swift */,
+				0B429B74309EC6A700FB37C4 /* Assets.xcassets */,
+				7BDDAC7396179DD314B22D66 /* GoHealthApp.swift */,
+				3C4D5BF81259353996C99C21 /* ContentView.swift */,
+				42F2884382EF4AF9A2600B1B /* OrganOverview.swift */,
+				77A9CC92194545D68DEB2E12 /* HealthProfileView.swift */,
+				B11A767460370FE748B7F69E /* HealthStore.swift */,
+				EBCC01000000000000000002 /* ClinicalRecords.swift */,
+				EBCC02000000000000000002 /* ClinicalImageArchive.swift */,
+				EBCC03000000000000000002 /* PublishedImageArchiveView.swift */,
+				EBAA05000000000000000002 /* BundledImagingDemo.swift */,
+				EBAA03000000000000000002 /* ImagingFrameBuffer.swift */,
+				EBAA04000000000000000002 /* RadiologyPlayback.swift */,
+				EBAA02000000000000000002 /* RadiologyView.swift */,
+				EBAA08000000000000000002 /* VaccinationView.swift */,
+				EBAA08000000000000000004 /* TravelVaccinationView.swift */,
+				EBAA09000000000000000002 /* CareMessageCenter.swift */,
+				EBAA0A000000000000000002 /* HealthSummaryView.swift */,
+				EBFF01000000000000000002 /* Spirometry.swift */,
+				AABBCCDDEE00000000000002 /* RecoveryDemoView.swift */,
+				AABBCCDDEE00000000000004 /* RecoveryDemo */,
+				9AC3B5AD93CBC0305C62F78F /* Info.plist */,
+				D696C7787D83ED53626ACDA4 /* GoHealth.entitlements */,
+			);
+			path = GoHealth;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		34A04005BCAF206EEC990BD9 /* GoHealth */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 1B672BF3DA427763BF644BE3 /* Build configuration list for PBXNativeTarget "GoHealth" */;
+			buildPhases = (
+				878A52FC5FF6A57D50B7B870 /* Sources */,
+				E2AA269EB967A8853A258BFA /* Frameworks */,
+				41D311A605520FC7B8B9A980 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = GoHealth;
+			packageProductDependencies = (
+				0B429B77309ED06100FB37C4 /* Supabase */,
+			);
+			productName = GoHealth;
+			productReference = A172CEDCAE47474B615C54D5 /* GoHealth.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		244210E48437B6556980A702 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 2710;
+				TargetAttributes = {
+					34A04005BCAF206EEC990BD9 = {
+						CreatedOnToolsVersion = 16.0;
+						SystemCapabilities = {
+							com.apple.HealthKit = {
+								enabled = 1;
+							};
+						};
+					};
+				};
+			};
+			buildConfigurationList = 76F8DEC3DFE0BDB465198890 /* Build configuration list for PBXProject "GoHealth" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = sv;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				sv,
+				en,
+				Base,
+			);
+			mainGroup = 0D6E4079E36703EBD37C0072;
+			packageReferences = (
+				0B429B76309ED06100FB37C4 /* XCRemoteSwiftPackageReference "supabase-swift" */,
+			);
+			productRefGroup = 0A3E27B8CA818264D75C8D81 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				34A04005BCAF206EEC990BD9 /* GoHealth */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		41D311A605520FC7B8B9A980 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				0B429B75309EC6A700FB37C4 /* Assets.xcassets in Resources */,
+				AABBCCDDEE00000000000003 /* RecoveryDemo in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		878A52FC5FF6A57D50B7B870 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				8C8EB49CE6C2C8776E03C2A5 /* GoHealthApp.swift in Sources */,
+				D5B3906592863DD33AFC5412 /* ContentView.swift in Sources */,
+				5454CB6899A34E87BFE62A09 /* OrganOverview.swift in Sources */,
+				77A9CC92194545D68DEB2E13 /* HealthProfileView.swift in Sources */,
+				A92BFF5798A1B873927D850A /* HealthStore.swift in Sources */,
+				EBAA05000000000000000001 /* BundledImagingDemo.swift in Sources */,
+				EBAA03000000000000000001 /* ImagingFrameBuffer.swift in Sources */,
+				EBAA04000000000000000001 /* RadiologyPlayback.swift in Sources */,
+				EBAA02000000000000000001 /* RadiologyView.swift in Sources */,
+				EBAA08000000000000000001 /* VaccinationView.swift in Sources */,
+				EBAA08000000000000000003 /* TravelVaccinationView.swift in Sources */,
+				EBAA09000000000000000001 /* CareMessageCenter.swift in Sources */,
+				EBAA0A000000000000000001 /* HealthSummaryView.swift in Sources */,
+				EBFF01000000000000000001 /* Spirometry.swift in Sources */,
+				EBCC01000000000000000001 /* ClinicalRecords.swift in Sources */,
+				EBCC02000000000000000001 /* ClinicalImageArchive.swift in Sources */,
+				EBCC03000000000000000001 /* PublishedImageArchiveView.swift in Sources */,
+				AABBCCDDEE00000000000001 /* RecoveryDemoView.swift in Sources */,
+				0B429B7B309F76EF00FB37C4 /* BodyAvatarView.swift in Sources */,
+				0B429B7C309F76EF00FB37C4 /* BodyAvatarReconstruction.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		0B0C687DF8B6B8DC790B519C /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_ANALYZER_LOCALIZABILITY_NONLOCALIZED = YES;
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+			};
+			name = Release;
+		};
+		6C7EFF6369083C8E1F2B1994 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CODE_SIGN_ENTITLEMENTS = GoHealth/GoHealth.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "GoHealth/Info-Debug.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = GoHealth;
+				INFOPLIST_KEY_NSCameraUsageDescription = "GoHealth använder kameran för tre helkroppsbilder till din 3D-avatar. Bilderna bearbetas på den här iPhonen.";
+				INFOPLIST_KEY_NSHealthShareUsageDescription = "GoHealth läser dina mätningar från Apple Hälsa och använder biologiskt kön för att visa rätt kroppsfigur. Hälsouppgifterna stannar på din iPhone.";
+				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "GoHealth ansluter till den lokala bildtjänsten för syntetisk bilddiagnostik i simulatorn.";
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = se.hemlakare.gohealth;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
+		73EBF6644258C120893E685D /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_ANALYZER_LOCALIZABILITY_NONLOCALIZED = YES;
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		DD75E2CB1C510A828AC72D96 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CODE_SIGN_ENTITLEMENTS = GoHealth/GoHealth.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = GoHealth/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = GoHealth;
+				INFOPLIST_KEY_NSCameraUsageDescription = "GoHealth använder kameran för tre helkroppsbilder till din 3D-avatar. Bilderna bearbetas på den här iPhonen.";
+				INFOPLIST_KEY_NSHealthShareUsageDescription = "GoHealth läser dina mätningar från Apple Hälsa och använder biologiskt kön för att visa rätt kroppsfigur. Hälsouppgifterna stannar på din iPhone.";
+				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "GoHealth ansluter till den lokala bildtjänsten för syntetisk bilddiagnostik i simulatorn.";
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = se.hemlakare.gohealth;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		1B672BF3DA427763BF644BE3 /* Build configuration list for PBXNativeTarget "GoHealth" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				6C7EFF6369083C8E1F2B1994 /* Debug */,
+				DD75E2CB1C510A828AC72D96 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		76F8DEC3DFE0BDB465198890 /* Build configuration list for PBXProject "GoHealth" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				73EBF6644258C120893E685D /* Debug */,
+				0B0C687DF8B6B8DC790B519C /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		0B429B76309ED06100FB37C4 /* XCRemoteSwiftPackageReference "supabase-swift" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/supabase/supabase-swift.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.55.6;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		0B429B77309ED06100FB37C4 /* Supabase */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 0B429B76309ED06100FB37C4 /* XCRemoteSwiftPackageReference "supabase-swift" */;
+			productName = Supabase;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = 244210E48437B6556980A702 /* Project object */;
+}

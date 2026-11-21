@@ -1,0 +1,12 @@
+{
+  "data" : [
+    {
+      "filename" : "world.json",
+      "idiom" : "universal"
+    }
+  ],
+  "info" : {
+    "author" : "xcode",
+    "version" : 1
+  }
+}
