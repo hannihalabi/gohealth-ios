@@ -139,7 +139,7 @@ private final class GoHealthAccount: ObservableObject {
     func uploadVitals(_ batch: ClinicalVitalsBatch, for accountID: UUID) async throws {
         try Task.checkCancellation()
         _ = try await imagingAccessToken(for: accountID)
-        try await client.rpc("gohealth_ingest_vitals", params: batch).execute()
+        try await client.rpc(batch.expandedHistory ? "gohealth_ingest_vitals_v2" : "gohealth_ingest_vitals", params: batch).execute()
         guard user?.id == accountID else { throw URLError(.userAuthenticationRequired) }
     }
 

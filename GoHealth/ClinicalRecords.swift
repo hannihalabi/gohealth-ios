@@ -81,10 +81,22 @@ struct ClinicalVitalSample: Encodable {
     let source: String
     let definition: String
     var calendar_day: String? = nil
+    var metadata: ClinicalVitalMetadata? = nil
+}
+struct ClinicalVitalMetadata: Encodable {
+    let user_entered: Bool
+    let source_bundle: String
+    let healthkit_type: String
+    let import_timezone: String
+    var workout_activity: UInt? = nil
+    var sleep_stage: Int? = nil
+    var device: String? = nil
 }
 struct ClinicalVitalsBatch: Encodable {
     let p_samples: [ClinicalVitalSample]
     let p_deleted: [UUID]
+    var expandedHistory: Bool = false
+    enum CodingKeys: String, CodingKey { case p_samples, p_deleted }
 }
 
 @MainActor
@@ -100,6 +112,9 @@ final class ClinicalStore: ObservableObject {
     @Published var stepSharingEnabled: Bool {
         didSet { preferences.set(stepSharingEnabled, forKey: "clinicalStepSharing.\(accountID)") }
     }
+    @Published var allHistorySharingEnabled: Bool {
+        didSet { preferences.set(allHistorySharingEnabled, forKey: "clinicalAllHistorySharing.\(accountID)") }
+    }
     private let accountID: UUID
     private let isBeta: Bool
     private let preferences = UserDefaults.standard
@@ -114,6 +129,7 @@ final class ClinicalStore: ObservableObject {
         self.accountID = accountID; self.isBeta = isBeta; self.fetch = fetch; self.upload = upload
         self.downloadArchive = downloadArchive
         self.sharingEnabled = !isBeta && UserDefaults.standard.bool(forKey: "clinicalSharing.\(accountID)")
+        self.allHistorySharingEnabled = !isBeta && UserDefaults.standard.bool(forKey: "clinicalAllHistorySharing.\(accountID)")
         self.stepSharingEnabled = !isBeta && UserDefaults.standard.bool(forKey: "clinicalStepSharing.\(accountID)")
     }
     var imageRecords: [ClinicalRecord] { records.filter { $0.imageArchive != nil } }
@@ -131,10 +147,11 @@ final class ClinicalStore: ObservableObject {
         }
     }
     func sync() async {
-        guard !isBeta, (sharingEnabled || stepSharingEnabled), !isSyncing,
+        guard !isBeta, (sharingEnabled || stepSharingEnabled || allHistorySharingEnabled), !isSyncing,
               HKHealthStore.isHealthDataAvailable() else { return }
         isSyncing = true; defer { isSyncing = false }
         do {
+            if allHistorySharingEnabled { try await syncAllHistory(); return }
             let types: [HKSampleType] = [HKQuantityType(.heartRate), HKQuantityType(.restingHeartRate), HKCategoryType(.sleepAnalysis)]
             let steps = HKQuantityType(.stepCount)
             let shareSamples = sharingEnabled
@@ -161,6 +178,124 @@ final class ClinicalStore: ObservableObject {
             if !Task.isCancelled { syncMessage = "Delningen kunde inte slutföras. Redan mottagna mätningar dubbleras inte vid nästa försök. Kontrollera kontokopplingen och nätverket." }
         }
     }
+    private struct SharedQuantity {
+        let type: HKQuantityType
+        let kind: String
+        let unit: HKUnit
+        let unitName: String
+        var multiplier: Double = 1
+    }
+    private static var sharedQuantities: [SharedQuantity] {
+        let perMinute = HKUnit.count().unitDivided(by: .minute())
+        var types: [SharedQuantity] = [
+            .init(type: HKQuantityType(.heartRate), kind: "heart-rate", unit: perMinute, unitName: "beats/min"),
+            .init(type: HKQuantityType(.restingHeartRate), kind: "resting-heart-rate", unit: perMinute, unitName: "beats/min"),
+            .init(type: HKQuantityType(.heartRateVariabilitySDNN), kind: "hrv", unit: .secondUnit(with: .milli), unitName: "ms"),
+            .init(type: HKQuantityType(.respiratoryRate), kind: "respiratory-rate", unit: perMinute, unitName: "breaths/min"),
+            .init(type: HKQuantityType(.oxygenSaturation), kind: "oxygen", unit: .percent(), unitName: "%", multiplier: 100),
+            .init(type: HKQuantityType(.vo2Max), kind: "vo2-max", unit: HKUnit(from: "ml/kg*min"), unitName: "ml/kg/min"),
+            .init(type: HKQuantityType(.bodyMass), kind: "weight", unit: .gramUnit(with: .kilo), unitName: "kg"),
+            .init(type: HKQuantityType(.bodyTemperature), kind: "temperature", unit: .degreeCelsius(), unitName: "degC"),
+            .init(type: HKQuantityType(.forcedExpiratoryVolume1), kind: "fev1", unit: .liter(), unitName: "L"),
+            .init(type: HKQuantityType(.forcedVitalCapacity), kind: "fvc", unit: .liter(), unitName: "L"),
+            .init(type: HKQuantityType(.peakExpiratoryFlowRate), kind: "pef", unit: .liter().unitDivided(by: .minute()), unitName: "L/min"),
+            .init(type: HKQuantityType(.stepCount), kind: "step-count", unit: .count(), unitName: "count"),
+            .init(type: HKQuantityType(.distanceWalkingRunning), kind: "distance", unit: .meterUnit(with: .kilo), unitName: "km"),
+            .init(type: HKQuantityType(.activeEnergyBurned), kind: "active-energy", unit: .kilocalorie(), unitName: "kcal"),
+            .init(type: HKQuantityType(.flightsClimbed), kind: "flights", unit: .count(), unitName: "count")
+        ]
+        if #available(iOS 27.0, *) {
+            types.append(.init(type: HKQuantityType(.heartRateVariabilityRMSSD), kind: "hrv-rmssd", unit: .secondUnit(with: .milli), unitName: "ms"))
+        }
+        return types
+    }
+    func restartAllHistory() async {
+        guard allHistorySharingEnabled, !isSyncing else { return }
+        let types: [HKSampleType] = Self.sharedQuantities.map(\.type) + [HKCategoryType(.sleepAnalysis), HKObjectType.workoutType()]
+        for type in types {
+            preferences.removeObject(forKey: "clinicalAllHistoryAnchor.v2.\(accountID).\(type.identifier)")
+        }
+        await sync()
+    }
+    private func syncAllHistory() async throws {
+        let types: [HKSampleType] = Self.sharedQuantities.map(\.type) + [HKCategoryType(.sleepAnalysis), HKObjectType.workoutType()]
+        try await health.requestAuthorization(toShare: [], read: Set(types))
+        var pending = types
+        var sent = 0
+        // Interleave the types so dense pulse history cannot starve the rest.
+        // Versioned anchors have no 90-day predicate and survive app restarts.
+        while !pending.isEmpty {
+            var remaining: [HKSampleType] = []
+            for type in pending {
+                try Task.checkCancellation()
+                guard allHistorySharingEnabled else { return }
+                let key = "clinicalAllHistoryAnchor.v2.\(accountID).\(type.identifier)"
+                let anchor = try preferences.data(forKey: key).flatMap {
+                    try NSKeyedUnarchiver.unarchivedObject(ofClass: HKQueryAnchor.self, from: $0)
+                }
+                let page = try await readAllHistoryPage(type: type, anchor: anchor)
+                let samples = page.0.compactMap(Self.convertAllHistory)
+                try Task.checkCancellation()
+                guard allHistorySharingEnabled else { return }
+                try await upload(ClinicalVitalsBatch(p_samples: samples, p_deleted: page.1.map(\.uuid), expandedHistory: true))
+                // An acknowledged upload must precede every checkpoint.
+                if let next = page.2 {
+                    preferences.set(try NSKeyedArchiver.archivedData(withRootObject: next, requiringSecureCoding: true), forKey: key)
+                }
+                sent += samples.count
+                syncMessage = "Delar hela läsbara historiken: \(sent.formatted()) mätningar i denna körning. Håll appen öppen."
+                if page.0.count + page.1.count >= 500 { remaining.append(type) }
+                // Keep below the shared per-user 120 requests/minute limit.
+                try await Task.sleep(for: .milliseconds(750))
+            }
+            pending = remaining
+        }
+        syncMessage = "Genomgång av hela historiken klar. \(sent.formatted()) mätningar behandlades. Endast uppgifter som Apple Hälsa tillåter GoHealth att läsa har kunnat delas."
+    }
+    private func readAllHistoryPage(type: HKSampleType, anchor: HKQueryAnchor?) async throws -> ([HKSample], [HKDeletedObject], HKQueryAnchor?) {
+        try await withCheckedThrowingContinuation { continuation in
+            let query = HKAnchoredObjectQuery(type: type, predicate: nil, anchor: anchor, limit: 500) { _, samples, deleted, next, error in
+                if let error { continuation.resume(throwing: error) }
+                else { continuation.resume(returning: (samples ?? [], deleted ?? [], next)) }
+            }
+            health.execute(query)
+        }
+    }
+    private static func convertAllHistory(_ sample: HKSample) -> ClinicalVitalSample? {
+        let kind: String; let value: Double?; let unit: String; let definition: String
+        var metadata = ClinicalVitalMetadata(
+            user_entered: sample.metadata?[HKMetadataKeyWasUserEntered] as? Bool ?? false,
+            source_bundle: sample.sourceRevision.source.bundleIdentifier,
+            healthkit_type: sample.sampleType.identifier, import_timezone: TimeZone.current.identifier,
+            device: sample.device?.name
+        )
+        if let quantity = sample as? HKQuantitySample {
+            guard let metric = sharedQuantities.first(where: { $0.type == quantity.quantityType }) else { return nil }
+            let number = quantity.quantity.doubleValue(for: metric.unit) * metric.multiplier
+            guard number.isFinite else { return nil }
+            kind = metric.kind; value = number; unit = metric.unitName; definition = kind
+        } else if let sleep = sample as? HKCategorySample {
+            metadata.sleep_stage = sleep.value
+            value = nil; unit = "interval"
+            switch sleep.value {
+            case HKCategoryValueSleepAnalysis.asleepCore.rawValue: kind = "sleep"; definition = "asleep-core"
+            case HKCategoryValueSleepAnalysis.asleepDeep.rawValue: kind = "sleep"; definition = "asleep-deep"
+            case HKCategoryValueSleepAnalysis.asleepREM.rawValue: kind = "sleep"; definition = "asleep-rem"
+            case HKCategoryValueSleepAnalysis.asleepUnspecified.rawValue: kind = "sleep"; definition = "asleep-unspecified"
+            case HKCategoryValueSleepAnalysis.awake.rawValue: kind = "sleep-awake"; definition = "awake"
+            case HKCategoryValueSleepAnalysis.inBed.rawValue: kind = "sleep-in-bed"; definition = "in-bed"
+            default: return nil
+            }
+        } else if let workout = sample as? HKWorkout {
+            kind = "workout"; value = workout.duration / 60; unit = "min"; definition = kind
+            metadata.workout_activity = workout.workoutActivityType.rawValue
+        } else { return nil }
+        let formatter = ISO8601DateFormatter()
+        return ClinicalVitalSample(source_id: sample.uuid, kind: kind, value: value, unit: unit,
+            start_at: formatter.string(from: sample.startDate), end_at: formatter.string(from: sample.endDate),
+            source: "\(sample.sourceRevision.source.name) · \(sample.sourceRevision.source.bundleIdentifier)", definition: definition, metadata: metadata)
+    }
+
     private func syncSamples(_ types: [HKSampleType]) async throws {
         // Keep the predicate fixed for existing anchors and checkpoint after upload.
         let startKey = "clinicalSyncStart.\(accountID)"
@@ -284,14 +419,30 @@ final class ClinicalStore: ObservableObject {
 struct ClinicalRecordsView: View {
     @ObservedObject var store: ClinicalStore
     @State private var showSharingConfirmation = false
+    @State private var showAllHistoryConfirmation = false
     @State private var showStepSharingConfirmation = false
     var body: some View {
         List {
             Section("Dela mätningar med vårdteamet") {
-                Toggle("Dela puls, vilopuls och sömn", isOn: Binding(get: { store.sharingEnabled }, set: { enabled in
+                Toggle("Dela alla mätvärden och hela historiken", isOn: Binding(get: { store.allHistorySharingEnabled }, set: { enabled in
+                    if enabled { showAllHistoryConfirmation = true } else { store.allHistorySharingEnabled = false }
+                }))
+                .confirmationDialog("Dela alla mätvärden och hela historiken?", isPresented: $showAllHistoryConfirmation, titleVisibility: .visible) {
+                    Button("Dela hela min läsbara historik") { store.allHistorySharingEnabled = true; Task { await store.sync() } }
+                    Button("Avbryt", role: .cancel) {}
+                } message: {
+                    Text("Puls, HRV, andning, syremättnad, kondition, vikt, temperatur, lungfunktion, aktivitet, sömnstadier och träningspass delas med GoHealths behöriga vårdteam så långt bak Apple Hälsa har läsbara data. Tid, källa och manuellt inmatade värden bevaras. Uppgifterna kan användas som underlag för kommande analys; ingen extern AI-överföring aktiveras med detta val. Dela bara dina egna uppgifter. Avstängning stoppar framtida överföring men tar inte bort redan delade data.")
+                }
+                Text("Hela historiken importeras i återupptagbara omgångar när appen är öppen. Det kan ta tid första gången. Apple Hälsas läsbehörigheter avgör vilka uppgifter som kan delas.").font(.caption).foregroundStyle(.secondary)
+                if store.allHistorySharingEnabled {
+                    Button("Importera om hela tillgängliga historiken") { Task { await store.restartAllHistory() } }.disabled(store.isSyncing)
+                    Text("Använd efter ändrade läsbehörigheter i Apple Hälsa. Redan delade råmätningar dubbleras inte.").font(.caption).foregroundStyle(.secondary)
+                }
+
+                Toggle("Dela puls, vilopuls och sömn (90 dagar)", isOn: Binding(get: { store.sharingEnabled }, set: { enabled in
                     if enabled { showSharingConfirmation = true } else { store.sharingEnabled = false }
                 }))
-                Toggle("Dela steg per dag", isOn: Binding(get: { store.stepSharingEnabled }, set: { enabled in
+                Toggle("Dela steg per dag (90 dagar)", isOn: Binding(get: { store.stepSharingEnabled }, set: { enabled in
                     if enabled { showStepSharingConfirmation = true } else { store.stepSharingEnabled = false }
                 }))
                 .confirmationDialog("Dela steg med vårdteamet?", isPresented: $showStepSharingConfirmation, titleVisibility: .visible) {
@@ -300,8 +451,8 @@ struct ClinicalRecordsView: View {
                 } message: {
                     Text("Dagliga stegsummor från de senaste 90 dagarna överförs från Apple Hälsa till GoHealth och kan läsas av ditt behöriga vårdteam.")
                 }
-                Text("Vid första delningen hämtas högst 90 dagars läsbar historik. Mätningarna uppdateras när appen är öppen. Vårdteamet behöver ha verifierat din kontokoppling. När du stänger av ett val stoppas nästa överföring av den typen. Tidigare delade mätningar finns kvar.").font(.caption).foregroundStyle(.secondary)
-                if store.sharingEnabled || store.stepSharingEnabled {
+                Text("De begränsade delningsvalen delar högst 90 dagar. Valet att dela hela historiken har ingen sådan datumgräns. Mätningarna uppdateras när appen är öppen. Vårdteamet behöver ha verifierat din kontokoppling. När du stänger av ett val stoppas nästa överföring av den typen. Tidigare delade mätningar finns kvar.").font(.caption).foregroundStyle(.secondary)
+                if store.sharingEnabled || store.stepSharingEnabled || store.allHistorySharingEnabled {
                     Button(store.isSyncing ? "Synkroniserar…" : "Uppdatera delade mätningar") { Task { await store.sync() } }.disabled(store.isSyncing)
                 }
                 if let message = store.syncMessage { Text(message).font(.caption) }
