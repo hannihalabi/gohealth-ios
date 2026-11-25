@@ -327,6 +327,8 @@ struct ContentView: View {
     @State private var showsProfileNameError = false
     @State private var profileNameDraft = ""
     @State private var selectedTab: DashboardTab = .home
+    /// The health grade's scan and assistant fill the screen; the tab bar steps aside meanwhile.
+    @State private var gradeImmersive = false
     @State private var selectedOrgan: BodyOrgan?
     @State private var homePanel: HomePanel?
     @State private var homePanelProgress: CGFloat = 0
@@ -647,7 +649,7 @@ struct ContentView: View {
                     case .activity: activityPage
                     case .measurements: measurementsPage
                     case .recovery:
-                        HealthGradePreview(firstName: givenName) {
+                        HealthGradePreview(firstName: givenName, immersive: $gradeImmersive) {
                             if let avatar {
                                 BodyAvatarDisplay(avatar: avatar, showMarkers: false) { _ in EmptyView() }
                                     .id(avatar.id)
@@ -684,8 +686,12 @@ struct ContentView: View {
             }
             .coordinateSpace(name: HomePanel.messages.coordinateSpace)
 
-            tabBar
+            if !gradeImmersive {
+                tabBar
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
         }
+        .onChange(of: selectedTab) { _, _ in gradeImmersive = false }
         .task(id: scenePhase) {
             if scenePhase == .active && !isBeta { await messages.refreshWhileActive() }
         }

@@ -1,4 +1,3 @@
-import AVFoundation
 import SwiftUI
 
 // MARK: - The assistant character
@@ -233,40 +232,6 @@ struct HealthAssistantAvatar: View {
     }
 }
 
-// MARK: - Speaking
-
-/// Reads the assistant's lines aloud in Swedish and reports while it speaks.
-@MainActor
-final class AssistantSpeaker: NSObject, ObservableObject, AVSpeechSynthesizerDelegate {
-    @Published private(set) var speaking = false
-    private let synthesizer = AVSpeechSynthesizer()
-
-    override init() {
-        super.init()
-        synthesizer.delegate = self
-    }
-
-    func say(_ text: String) {
-        synthesizer.stopSpeaking(at: .immediate)
-        let utterance = AVSpeechUtterance(string: text)
-        utterance.voice = AVSpeechSynthesisVoice(language: "sv-SE")
-        utterance.rate = AVSpeechUtteranceDefaultSpeechRate * 1.02
-        synthesizer.speak(utterance)
-    }
-
-    func stop() { synthesizer.stopSpeaking(at: .immediate) }
-
-    nonisolated func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didStart utterance: AVSpeechUtterance) {
-        Task { @MainActor in self.speaking = true }
-    }
-    nonisolated func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didFinish utterance: AVSpeechUtterance) {
-        Task { @MainActor in self.speaking = false }
-    }
-    nonisolated func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didCancel utterance: AVSpeechUtterance) {
-        Task { @MainActor in self.speaking = false }
-    }
-}
-
 // MARK: - Findings
 
 struct HealthRevealFinding: Identifiable, Equatable {
@@ -331,13 +296,107 @@ private struct Sparkline: Shape {
         return path
     }
 }
+// MARK: - Shared look
+
+enum GradePalette {
+    static let ink = Color(red: 0.19, green: 0.11, blue: 0.22)
+    static let plum = Color(red: 0.34, green: 0.12, blue: 0.29)
+    static let rose = Color(red: 0.73, green: 0.20, blue: 0.47)
+    static let softPink = Color(red: 1.0, green: 0.68, blue: 0.82)
+    static let lavender = Color(red: 0.90, green: 0.82, blue: 1.0)
+    static let gold = Color(red: 1.0, green: 0.80, blue: 0.47)
+    static let goldLight = Color(red: 1.0, green: 0.93, blue: 0.76)
+    static let goldDeep = Color(red: 0.78, green: 0.53, blue: 0.20)
+    /// The colour of the top grade.
+    static var goldGradient: LinearGradient {
+        LinearGradient(colors: [goldLight, gold, goldDeep], startPoint: .topLeading, endPoint: .bottomTrailing)
+    }
+}
+
+/// The main button of the health grade: a wide capsule with a light sweep and an arrow, for dark or light backgrounds.
+struct HealthPrimaryButtonLabel: View {
+    let title: String
+    var symbol = "arrow.right"
+    var onDark = true
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        ZStack {
+            Text(title)
+                .font(.system(.headline, design: .rounded, weight: .bold))
+                .foregroundStyle(onDark ? GradePalette.ink : .white)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+                .padding(.horizontal, 58)
+                .contentTransition(.opacity)
+            HStack {
+                Spacer()
+                Image(systemName: symbol)
+                    .font(.system(size: 16, weight: .bold))
+                    .foregroundStyle(onDark ? Color.white : GradePalette.plum)
+                    .contentTransition(.symbolEffect(.replace))
+                    .frame(width: 42, height: 42)
+                    .background {
+                        if onDark {
+                            Circle().fill(LinearGradient(colors: [GradePalette.rose, GradePalette.plum],
+                                                         startPoint: .topLeading, endPoint: .bottomTrailing))
+                        } else {
+                            Circle().fill(.white)
+                        }
+                    }
+                    .shadow(color: GradePalette.plum.opacity(0.3), radius: 6, y: 2)
+            }
+            .padding(.trailing, 8)
+        }
+        .frame(maxWidth: .infinity, minHeight: 58)
+        .background(background, in: Capsule())
+        .overlay { shimmer.clipShape(Capsule()).allowsHitTesting(false) }
+        .overlay { Capsule().strokeBorder(.white.opacity(onDark ? 0.8 : 0.25), lineWidth: 1) }
+        .shadow(color: onDark ? GradePalette.softPink.opacity(0.5) : GradePalette.rose.opacity(0.35), radius: 18, y: 8)
+        .contentShape(Capsule())
+    }
+
+    private var background: LinearGradient {
+        onDark
+            ? LinearGradient(colors: [.white, Color(red: 1, green: 0.88, blue: 0.94), GradePalette.softPink],
+                             startPoint: .leading, endPoint: .trailing)
+            : LinearGradient(colors: [GradePalette.rose, GradePalette.plum], startPoint: .leading, endPoint: .trailing)
+    }
+
+    @ViewBuilder private var shimmer: some View {
+        if !reduceMotion {
+            TimelineView(.animation(minimumInterval: 1 / 30)) { context in
+                let cycle = context.date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: 3.4) / 3.4
+                GeometryReader { proxy in
+                    let sweep = min(1, cycle / 0.35)
+                    LinearGradient(colors: [.clear, .white.opacity(onDark ? 0.8 : 0.35), .clear],
+                                   startPoint: .leading, endPoint: .trailing)
+                        .frame(width: proxy.size.width * 0.28, height: proxy.size.height * 2)
+                        .rotationEffect(.degrees(18))
+                        .offset(x: -proxy.size.width * 0.35 + proxy.size.width * 1.45 * sweep, y: -proxy.size.height * 0.5)
+                        .opacity(cycle < 0.35 ? 1 : 0)
+                }
+            }
+        }
+    }
+}
+
+/// Gives a button a soft press.
+struct HealthPressStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.96 : 1)
+            .animation(.spring(response: 0.25, dampingFraction: 0.7), value: configuration.isPressed)
+    }
+}
 
 // MARK: - The reveal
 
 /**
- After the scan, the assistant presents what it found: a greeting, the grade landing with a burst of light and a
- haptic, then each finding on its own card with a self-drawing trend, and a closing line. Tap the assistant to hear the
- line again; "Läs upp" reads every line aloud.
+ After the scan, the assistant presents what it found, full screen: a greeting with the sources it read, the grade
+ landing on the A–E scale with a burst of light and a haptic, then each finding on its own card with a self-drawing
+ trend, and a closing summary. Tap the assistant to see the line again.
  */
 struct HealthGradeReveal: View {
     let firstName: String?
@@ -347,11 +406,17 @@ struct HealthGradeReveal: View {
     let positiveGrade: Bool
     let findings: [HealthRevealFinding]
     let isExample: Bool
+    /// "1 år"
+    let periodTitle: String
+    /// "ett år"
+    let periodSpan: String
+    /// Under the start of each trend: "För ett år sedan".
+    let trendStart: String
+    let sources: [String]
+    let dataPoints: Int
     let finish: () -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @StateObject private var speaker = AssistantSpeaker()
-    @AppStorage("healthAssistant.readAloud") private var readAloud = false
     @State private var step = 0
     @State private var shown = 0
     @State private var typing = false
@@ -362,27 +427,31 @@ struct HealthGradeReveal: View {
     @State private var burst: Date?
     @State private var cardProgress: CGFloat = 0
     @State private var changeShown = 0
+    @State private var sourcesShown = false
     @State private var playToken = 0
 
-    private let ink = Color(red: 0.19, green: 0.11, blue: 0.22)
-    private let softPink = Color(red: 1.0, green: 0.68, blue: 0.82)
-    private let lavender = Color(red: 0.90, green: 0.82, blue: 1.0)
+    private static let scale = ["A", "B", "C", "D", "E"]
+    private let ink = GradePalette.ink
+    private let softPink = GradePalette.softPink
+    private let lavender = GradePalette.lavender
+    private let gold = GradePalette.gold
 
     /// 0 greeting, 1 grade, 2... findings, last: closing.
     private var lastStep: Int { findings.count + 2 }
     private var finding: HealthRevealFinding? {
         step >= 2 && step - 2 < findings.count ? findings[step - 2] : nil
     }
+    private var isTop: Bool { grade == "A" }
     private var line: String {
         let name = firstName.map { " \($0)" } ?? ""
         switch step {
         case 0:
-            return "Hej\(name)! Jag har gått igenom ett år av din hälsa: sömn, puls, andning, aktivitet och journalen."
+            return "Hej\(name)! Jag har gått igenom \(periodSpan) av din hälsa: sömn, puls, andning, aktivitet, blodprover och journalen."
                 + (isExample ? " Det här är exempeldata." : "")
         case 1:
             return "Ditt hälsobetyg blev \(grade). \(gradeTitle)."
         case lastStep:
-            return "Det var mina viktigaste fynd. Här under hittar du alla resultat och kurvor."
+            return "Det var mina viktigaste fynd. Nu visar jag alla resultat och kurvor."
         default:
             return finding?.speech ?? ""
         }
@@ -392,6 +461,15 @@ struct HealthGradeReveal: View {
         if step == 1 { return gradeLanded ? (positiveGrade ? .happy : .attentive) : .calm }
         return step == lastStep ? .happy : .calm
     }
+    private var nextTitle: String {
+        switch step {
+        case 0: "Visa mitt betyg"
+        case 1: "Se vad som påverkar"
+        case lastStep: "Visa alla resultat"
+        case lastStep - 1: "Sammanfattning"
+        default: "Nästa fynd"
+        }
+    }
 
     var body: some View {
         ZStack {
@@ -400,18 +478,18 @@ struct HealthGradeReveal: View {
             VStack(spacing: 0) {
                 header
                     .padding(.horizontal, 20)
-                    .padding(.top, 10)
+                    .padding(.top, 8)
 
-                Spacer(minLength: 6)
+                Spacer(minLength: 4)
 
-                HealthAssistantAvatar(mood: mood, talking: typing || speaker.speaking, look: look, size: 168, poke: poke)
+                HealthAssistantAvatar(mood: mood, talking: typing, look: look, size: step == 0 ? 150 : 124, poke: poke)
                     .onTapGesture {
                         poke += 1
                         replay()
                     }
                     .accessibilityElement()
                     .accessibilityLabel("Assistenten")
-                    .accessibilityHint("Säger meningen igen")
+                    .accessibilityHint("Visar meningen igen")
                     .accessibilityAddTraits(.isButton)
                     .accessibilityAction { poke += 1; replay() }
 
@@ -421,20 +499,21 @@ struct HealthGradeReveal: View {
 
                 stage
                     .frame(maxWidth: .infinity)
-                    .frame(minHeight: 230)
+                    .frame(minHeight: 200)
                     .padding(.horizontal, 20)
-                    .padding(.top, 16)
+                    .padding(.top, 14)
 
                 Spacer(minLength: 10)
 
                 controls
                     .padding(.horizontal, 20)
-                    .padding(.bottom, 16)
+                    .padding(.bottom, 12)
             }
             .frame(maxWidth: 560)
 
             if let burst, !reduceMotion {
-                GradeBurst(start: burst, colors: [softPink, lavender, .white, Color(red: 0.5, green: 0.96, blue: 0.9)])
+                GradeBurst(start: burst, colors: isTop ? [gold, GradePalette.goldLight, .white, softPink]
+                                                       : [softPink, lavender, .white, Color(red: 0.5, green: 0.96, blue: 0.9)])
                     .allowsHitTesting(false)
                     .ignoresSafeArea()
             }
@@ -445,7 +524,7 @@ struct HealthGradeReveal: View {
             .onChanged { value in
                 touching = true
                 let screen = UIScreen.main.bounds
-                let avatarCenter = CGPoint(x: screen.midX, y: screen.height * 0.27)
+                let avatarCenter = CGPoint(x: screen.midX, y: screen.height * 0.24)
                 let dx = value.location.x - avatarCenter.x, dy = value.location.y - avatarCenter.y
                 let d = max(hypot(dx, dy), 1)
                 let reach = min(1, d / 220)
@@ -458,27 +537,45 @@ struct HealthGradeReveal: View {
         .sensoryFeedback(.impact(weight: .light), trigger: step)
         .task { await glanceLoop() }
         .task(id: "\(step)-\(playToken)") { await play() }
-        .onDisappear { speaker.stop() }
     }
 
     private var header: some View {
-        HStack(alignment: .firstTextBaseline) {
-            Text("Hälsobetyg")
-                .font(.title2.bold())
-                .accessibilityAddTraits(.isHeader)
-            if isExample {
-                Text("Testdata")
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(ink)
-                    .padding(.vertical, 4)
-                    .padding(.horizontal, 9)
-                    .background(Color(red: 0.98, green: 0.89, blue: 0.94), in: Capsule())
+        VStack(spacing: 12) {
+            HStack(spacing: 4) {
+                ForEach(0...lastStep, id: \.self) { index in
+                    Capsule()
+                        .fill(.white.opacity(0.18))
+                        .overlay(alignment: .leading) {
+                            Capsule()
+                                .fill(.white)
+                                .scaleEffect(x: index <= step ? 1 : 0, y: 1, anchor: .leading)
+                        }
+                        .frame(height: 3)
+                        .clipShape(Capsule())
+                }
             }
-            Spacer()
-            Button("Hoppa över") { close() }
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(lavender)
-                .frame(minHeight: 44)
+            .animation(reduceMotion ? nil : .easeInOut(duration: 0.35), value: step)
+            .accessibilityElement()
+            .accessibilityLabel("Steg \(step + 1) av \(lastStep + 1)")
+
+            HStack(alignment: .center, spacing: 8) {
+                Text("Hälsobetyg")
+                    .font(.title3.bold())
+                    .accessibilityAddTraits(.isHeader)
+                if isExample {
+                    Text("Testdata")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(ink)
+                        .padding(.vertical, 4)
+                        .padding(.horizontal, 9)
+                        .background(Color(red: 0.98, green: 0.89, blue: 0.94), in: Capsule())
+                }
+                Spacer()
+                Button("Hoppa över", action: finish)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(lavender)
+                    .frame(minHeight: 44)
+            }
         }
     }
 
@@ -488,7 +585,7 @@ struct HealthGradeReveal: View {
             .font(.system(.title3, design: .rounded, weight: .semibold))
             .multilineTextAlignment(.center)
             .lineSpacing(2)
-            .frame(maxWidth: .infinity, minHeight: 78, alignment: .top)
+            .frame(maxWidth: .infinity, minHeight: 58, alignment: .top)
             .overlay(alignment: .top) {
                 // Reserves the full line's height so the layout does not jump while typing.
                 Text(line).font(.system(.title3, design: .rounded, weight: .semibold)).lineSpacing(2)
@@ -502,21 +599,14 @@ struct HealthGradeReveal: View {
     @ViewBuilder private var stage: some View {
         switch step {
         case 0:
-            HStack(spacing: 12) {
-                ForEach(["moon.stars", "heart", "lungs", "figure.walk", "testtube.2", "syringe"], id: \.self) { symbol in
-                    Image(systemName: symbol)
-                        .font(.system(size: 17, weight: .semibold))
-                        .frame(width: 42, height: 42)
-                        .background(.white.opacity(0.1), in: RoundedRectangle(cornerRadius: 13))
-                        .overlay { RoundedRectangle(cornerRadius: 13).strokeBorder(.white.opacity(0.16)) }
-                }
-            }
-            .foregroundStyle(lavender)
-            .transition(.scale(scale: 0.9).combined(with: .opacity))
-            .accessibilityHidden(true)
+            sourcesCard
+                .transition(.scale(scale: 0.92).combined(with: .opacity))
         case 1:
-            gradeSeal
-                .transition(.scale(scale: 0.6).combined(with: .opacity))
+            VStack(spacing: 16) {
+                gradeSeal
+                gradeScale
+            }
+            .transition(.scale(scale: 0.6).combined(with: .opacity))
         case lastStep:
             summaryGrid
                 .transition(.move(edge: .bottom).combined(with: .opacity))
@@ -530,22 +620,87 @@ struct HealthGradeReveal: View {
         }
     }
 
+    private var sourcesCard: some View {
+        let tints: [Color] = [Color(red: 0.85, green: 0.34, blue: 0.60), Color(red: 0.43, green: 0.29, blue: 0.69),
+                              Color(red: 0.18, green: 0.40, blue: 0.61), Color(red: 0.16, green: 0.43, blue: 0.38)]
+        let shape = RoundedRectangle(cornerRadius: 26)
+        return VStack(spacing: 16) {
+            HStack(spacing: -9) {
+                ForEach(Array(sources.enumerated()), id: \.offset) { index, symbol in
+                    Image(systemName: symbol)
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .frame(width: 42, height: 42)
+                        .background {
+                            Circle().fill(LinearGradient(colors: [tints[index % tints.count], tints[(index + 1) % tints.count]],
+                                                         startPoint: .topLeading, endPoint: .bottomTrailing))
+                        }
+                        .overlay { Circle().strokeBorder(Color(red: 0.22, green: 0.09, blue: 0.26), lineWidth: 2.5) }
+                        .zIndex(Double(sources.count - index))
+                        .scaleEffect(sourcesShown || reduceMotion ? 1 : 0.3)
+                        .opacity(sourcesShown || reduceMotion ? 1 : 0)
+                        .animation(reduceMotion ? nil : .spring(response: 0.45, dampingFraction: 0.62).delay(Double(index) * 0.07),
+                                   value: sourcesShown)
+                }
+            }
+            HStack(spacing: 0) {
+                stat("\(sources.count)", "källor")
+                statDivider
+                stat(dataPoints.formatted(.number.locale(Locale(identifier: "sv_SE"))), "datapunkter")
+                statDivider
+                stat(periodTitle, "period")
+            }
+        }
+        .padding(.vertical, 18)
+        .padding(.horizontal, 12)
+        .frame(maxWidth: .infinity)
+        .background {
+            shape.fill(LinearGradient(colors: [.white.opacity(0.13), softPink.opacity(0.08)],
+                                      startPoint: .topLeading, endPoint: .bottomTrailing))
+                .overlay { shape.strokeBorder(.white.opacity(0.18)) }
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(sources.count) källor, \(dataPoints) datapunkter, period \(periodTitle)")
+    }
+
+    private func stat(_ value: String, _ label: String) -> some View {
+        VStack(spacing: 2) {
+            Text(value)
+                .font(.system(.title3, design: .rounded, weight: .bold))
+                .monospacedDigit()
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+            Text(label)
+                .font(.caption)
+                .foregroundStyle(lavender)
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    private var statDivider: some View {
+        Rectangle().fill(.white.opacity(0.15)).frame(width: 1, height: 30)
+    }
+
     private var gradeSeal: some View {
-        ZStack {
+        let ring: [Color] = isTop ? [GradePalette.goldLight, gold, GradePalette.goldDeep, GradePalette.goldLight]
+                                  : [.white, lavender, softPink, .white]
+        return ZStack {
             Circle()
-                .fill(RadialGradient(colors: [softPink.opacity(0.35), softPink.opacity(0.03)], center: .topLeading, startRadius: 0, endRadius: 170))
-                .padding(12)
+                .fill(RadialGradient(colors: [(isTop ? gold : softPink).opacity(0.35), softPink.opacity(0.03)],
+                                     center: .topLeading, startRadius: 0, endRadius: 150))
+                .padding(11)
             Circle().strokeBorder(.white.opacity(0.16), lineWidth: 7)
             Circle()
                 .trim(from: 0, to: gradeLanded ? gradePosition : 0)
-                .stroke(AngularGradient(colors: [.white, lavender, softPink, .white], center: .center),
+                .stroke(AngularGradient(colors: ring, center: .center),
                         style: StrokeStyle(lineWidth: 7, lineCap: .round))
                 .rotationEffect(.degrees(-90))
                 .padding(3.5)
-                .shadow(color: softPink.opacity(0.7), radius: 12)
+                .shadow(color: (isTop ? gold : softPink).opacity(0.7), radius: 12)
             VStack(spacing: 0) {
                 Text(gradeLanded ? grade : " ")
-                    .font(.system(size: 82, weight: .bold, design: .rounded))
+                    .font(.system(size: 72, weight: .bold, design: .rounded))
+                    .foregroundStyle(isTop ? AnyShapeStyle(GradePalette.goldGradient) : AnyShapeStyle(.white))
                     .scaleEffect(gradeLanded ? 1 : 0.3)
                     .opacity(gradeLanded ? 1 : 0)
                 Text(gradeTitle)
@@ -554,9 +709,52 @@ struct HealthGradeReveal: View {
                     .opacity(gradeLanded ? 1 : 0)
             }
         }
-        .frame(width: 200, height: 200)
+        .frame(width: 176, height: 176)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Hälsobetyg \(grade), \(gradeTitle)")
+    }
+
+    private var gradeScale: some View {
+        VStack(spacing: 10) {
+            HStack(spacing: 8) {
+                ForEach(Self.scale, id: \.self) { letter in
+                    let mine = letter == grade
+                    let top = letter == "A"
+                    let shape = RoundedRectangle(cornerRadius: 12)
+                    Text(letter)
+                        .font(.system(size: 17, weight: .bold, design: .rounded))
+                        .foregroundStyle(mine ? ink : top ? gold : .white.opacity(0.6))
+                        .frame(width: 46, height: 40)
+                        .background {
+                            if mine {
+                                shape.fill(top ? AnyShapeStyle(GradePalette.goldGradient)
+                                               : AnyShapeStyle(LinearGradient(colors: [.white, softPink],
+                                                                              startPoint: .topLeading, endPoint: .bottomTrailing)))
+                            } else {
+                                shape.fill(.white.opacity(0.07))
+                            }
+                        }
+                        .overlay { shape.strokeBorder(top ? gold.opacity(0.7) : .white.opacity(mine ? 0 : 0.14)) }
+                        .overlay(alignment: .topTrailing) {
+                            if top {
+                                Image(systemName: "crown.fill")
+                                    .font(.system(size: 8, weight: .bold))
+                                    .foregroundStyle(mine ? ink.opacity(0.7) : gold)
+                                    .padding(4)
+                            }
+                        }
+                        .scaleEffect(mine && gradeLanded ? 1.12 : 1)
+                        .shadow(color: mine && gradeLanded ? (top ? gold : softPink).opacity(0.6) : .clear, radius: 10)
+                }
+            }
+            Text(verbatim: "A = topp 10 % · kräver blodprover med bra resultat")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(gold.opacity(0.9))
+                .multilineTextAlignment(.center)
+        }
+        .opacity(gradeLanded || reduceMotion ? 1 : 0.4)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Skala från A till E. A ges till topp 10 procent och kräver blodprover med bra resultat.")
     }
 
     private func findingCard(_ finding: HealthRevealFinding) -> some View {
@@ -585,11 +783,11 @@ struct HealthGradeReveal: View {
                     .minimumScaleFactor(0.7)
                     .lineLimit(1)
                 if let change = finding.change {
-                    Text("\(changeShown > 0 ? "+" : "")\(changeShown) %")
+                    Text(verbatim: "\(changeShown > 0 ? "+" : "")\(changeShown) %")
                         .font(.system(.headline, design: .rounded, weight: .bold))
                         .foregroundStyle(finding.tone.color)
                         .contentTransition(.numericText(value: Double(changeShown)))
-                        .accessibilityLabel("\(change) procent på ett år")
+                        .accessibilityLabel("\(change) procent")
                 }
             }
             if finding.trend.count > 1 {
@@ -599,7 +797,7 @@ struct HealthGradeReveal: View {
                         .stroke(finding.tint, style: StrokeStyle(lineWidth: 3, lineCap: .round, lineJoin: .round))
                         .shadow(color: finding.tint.opacity(0.7), radius: 6)
                     HStack {
-                        Text("För ett år sedan")
+                        Text(trendStart)
                         Spacer()
                         Text("Nu")
                     }
@@ -625,7 +823,7 @@ struct HealthGradeReveal: View {
     }
 
     private var summaryGrid: some View {
-        VStack(spacing: 10) {
+        VStack(spacing: 8) {
             ForEach(findings) { finding in
                 HStack(spacing: 10) {
                     Image(systemName: finding.symbol)
@@ -645,55 +843,34 @@ struct HealthGradeReveal: View {
     }
 
     private var controls: some View {
-        VStack(spacing: 12) {
-            if step >= 2 && step < lastStep {
-                HStack(spacing: 6) {
-                    ForEach(findings.indices, id: \.self) { index in
-                        Capsule()
-                            .fill(index == step - 2 ? softPink : .white.opacity(index < step - 2 ? 0.55 : 0.2))
-                            .frame(width: index == step - 2 ? 22 : 7, height: 7)
-                    }
-                }
-                .animation(.spring(response: 0.35, dampingFraction: 0.8), value: step)
-                .accessibilityElement()
-                .accessibilityLabel("Fynd \(step - 1) av \(findings.count)")
-            }
-            HStack(spacing: 12) {
-                Button {
-                    readAloud.toggle()
-                    if readAloud { speaker.say(line) } else { speaker.stop() }
-                } label: {
-                    Image(systemName: readAloud ? "speaker.wave.2.fill" : "speaker.slash")
-                        .font(.system(size: 17, weight: .semibold))
-                        .frame(width: 52, height: 52)
+        HStack(spacing: 12) {
+            if step > 0 {
+                Button(action: back) {
+                    Image(systemName: "chevron.left")
+                        .font(.system(size: 17, weight: .bold))
+                        .frame(width: 58, height: 58)
                         .background(.white.opacity(0.12), in: Circle())
-                        .overlay { Circle().strokeBorder(.white.opacity(0.2)) }
+                        .overlay { Circle().strokeBorder(.white.opacity(0.22)) }
                 }
-                .accessibilityLabel(readAloud ? "Sluta läsa upp" : "Läs upp")
-
-                Button(action: next) {
-                    Text(step == lastStep ? "Visa alla resultat" : step == 0 ? "Visa mitt betyg" : "Nästa")
-                        .font(.headline)
-                        .foregroundStyle(ink)
-                        .frame(maxWidth: .infinity, minHeight: 52)
-                        .background(LinearGradient(colors: [Color(red: 1, green: 0.84, blue: 0.92), softPink],
-                                                   startPoint: .topLeading, endPoint: .bottomTrailing), in: Capsule())
-                        .shadow(color: softPink.opacity(0.45), radius: 14, y: 6)
-                }
-                .buttonStyle(.plain)
+                .buttonStyle(HealthPressStyle())
+                .accessibilityLabel("Tillbaka")
+                .transition(.scale(scale: 0.6).combined(with: .opacity))
             }
+            Button(action: next) {
+                HealthPrimaryButtonLabel(title: nextTitle, symbol: step == lastStep ? "checkmark" : "arrow.right")
+            }
+            .buttonStyle(HealthPressStyle())
         }
     }
 
     // MARK: Playback
 
     private func play() async {
-        speaker.stop()
         shown = 0
         cardProgress = 0
         changeShown = 0
         if step != 1 { gradeLanded = false }
-        if readAloud { speaker.say(line) }
+        if step == 0 && !sourcesShown { sourcesShown = true }
         await typeLine()
         guard !Task.isCancelled else { return }
         if step == 1 {
@@ -726,7 +903,7 @@ struct HealthGradeReveal: View {
         for count in stride(from: 0, through: full.count, by: 2) {
             guard !Task.isCancelled, shown < full.count else { break }
             shown = count
-            try? await Task.sleep(for: .milliseconds(24))
+            try? await Task.sleep(for: .milliseconds(22))
         }
         shown = full.count
     }
@@ -734,13 +911,13 @@ struct HealthGradeReveal: View {
     private func replay() { playToken += 1 }
 
     private func next() {
-        if step >= lastStep { close(); return }
+        if step >= lastStep { finish(); return }
         withAnimation(reduceMotion ? nil : .spring(response: 0.5, dampingFraction: 0.85)) { step += 1 }
     }
 
-    private func close() {
-        speaker.stop()
-        finish()
+    private func back() {
+        guard step > 0 else { return }
+        withAnimation(reduceMotion ? nil : .spring(response: 0.5, dampingFraction: 0.85)) { step -= 1 }
     }
 
     /// When no finger is on the screen the eyes wander a little, like someone thinking.
@@ -756,6 +933,7 @@ struct HealthGradeReveal: View {
         }
     }
 }
+
 
 /// The aurora behind the reveal, tinted by the assistant's mood.
 private struct HealthRevealBackdrop: View {
