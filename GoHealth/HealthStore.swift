@@ -684,4 +684,3 @@ final class HealthStore: ObservableObject {
     private func oneDecimal(_ value: Double) -> String { value.formatted(.number.precision(.fractionLength(1))) }
     private func twoDecimals(_ value: Double) -> String { value.formatted(.number.precision(.fractionLength(2))) }
 }
-

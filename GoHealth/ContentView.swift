@@ -322,6 +322,8 @@ struct ContentView: View {
     @State private var profilePhotoSelection: PhotosPickerItem?
     @State private var showsProfilePhotoError = false
     @State private var showsProfileNameEditor = false
+    @State private var showsPasswordEditor = false
+    @State private var passwordSaved = false
     @State private var showsProfileNameError = false
     @State private var profileNameDraft = ""
     @State private var selectedTab: DashboardTab = .home
@@ -346,6 +348,11 @@ struct ContentView: View {
     private let givenName: String?
     private let updateDisplayName: (String) async -> Bool
     private let signOut: () async -> Void
+    private let deleteAccount: () async -> Bool
+    private let setPassword: (String) async -> Bool
+    @State private var showsAccountDeletion = false
+    @State private var isDeletingAccount = false
+    @State private var showsAccountDeletionError = false
     private let imagingAccessToken: () async throws -> String
     private let isBeta: Bool
     private let accent = Color(red: 0.73, green: 0.20, blue: 0.47)
@@ -374,9 +381,11 @@ struct ContentView: View {
         givenName: String? = nil,
         updateDisplayName: @escaping (String) async -> Bool,
         signOut: @escaping () async -> Void,
+        deleteAccount: @escaping () async -> Bool = { false },
+        setPassword: @escaping (String) async -> Bool = { _ in false },
         betaPreferences: UserDefaults? = nil,
         imagingAccessToken: @escaping () async throws -> String = { throw URLError(.userAuthenticationRequired) },
-        fetchMessages: @escaping () async throws -> [CareMessage] = { [] },
+        messaging: CareMessaging = .unavailable,
         fetchClinicalRecords: @escaping () async throws -> ClinicalEnvelope = { ClinicalEnvelope(records: []) },
         uploadClinicalVitals: @escaping (ClinicalVitalsBatch) async throws -> Void = { _ in throw URLError(.userAuthenticationRequired) },
         downloadClinicalArchive: @escaping (ClinicalArchiveAttachment) async throws -> Data = { _ in throw URLError(.userAuthenticationRequired) }
@@ -387,6 +396,8 @@ struct ContentView: View {
         self.givenName = givenName ?? displayName?.split(whereSeparator: \.isWhitespace).first.map(String.init)
         self.updateDisplayName = updateDisplayName
         self.signOut = signOut
+        self.deleteAccount = deleteAccount
+        self.setPassword = setPassword
         self.imagingAccessToken = imagingAccessToken
         let isBeta = betaPreferences != nil
         self.isBeta = isBeta
@@ -395,7 +406,7 @@ struct ContentView: View {
                                                             upload: uploadClinicalVitals, downloadArchive: downloadClinicalArchive))
         _vaccinations = StateObject(wrappedValue: VaccinationStore(accountID: accountID, isBeta: isBeta))
         _messages = StateObject(wrappedValue: CareMessageStore(
-            accountID: accountID, betaPreferences: betaPreferences, fetch: fetchMessages
+            accountID: accountID, betaPreferences: betaPreferences, messaging: messaging
         ))
         _profilePhotoData = AppStorage("profilePhoto.\(accountID.uuidString)", store: betaPreferences)
         _hasCompletedAvatarSetup = AppStorage(wrappedValue: false, "hasCompletedAvatarSetup.\(accountID.uuidString)", store: betaPreferences)
@@ -636,15 +647,23 @@ struct ContentView: View {
                     case .activity: activityPage
                     case .measurements: measurementsPage
                     case .recovery:
-                        HealthSummaryView(
-                            health: health, vaccinations: vaccinations, healthLinked: healthLinked, age: healthProfile?.age,
-                            isBeta: isBeta, imagingToken: imagingAccessToken,
-                            connect: { showsHealthLinkConfirmation = true },
-                            refreshHealth: syncHealth,
-                            openVaccinations: { showSummarySource(.vaccinations) },
-                            openImaging: { showSummarySource(.imaging) }
-                        )
-                        .navigationTitle(DashboardTab.recovery.title)
+                        HealthGradePreview(firstName: givenName) {
+                            if let avatar {
+                                BodyAvatarDisplay(avatar: avatar, showMarkers: false) { _ in EmptyView() }
+                                    .id(avatar.id)
+                            } else {
+                                bodyDiagram(standardAppearance ?? .male, showsMarkers: false)
+                            }
+                        } measurements: {
+                            HealthSummaryView(
+                                health: health, vaccinations: vaccinations, healthLinked: healthLinked,
+                                age: healthProfile?.age, isBeta: isBeta, imagingToken: imagingAccessToken,
+                                connect: { showsHealthLinkConfirmation = true },
+                                refreshHealth: syncHealth,
+                                openVaccinations: { showSummarySource(.vaccinations) },
+                                openImaging: { showSummarySource(.imaging) }
+                            )
+                        }
                     case .more: morePage
                     }
                 }
@@ -675,6 +694,7 @@ struct ContentView: View {
             await clinical.refresh()
             if healthLinked { clinical.attach(to: health); await clinical.sync() }
         }
+        .onReceive(clinical.$records) { vaccinations.setCareTeam($0) }
         .onPreferenceChange(HomePanelFramePreference.self) { frames in
             if homePanel == nil {
                 homePanelFrames.merge(frames.filter { !$0.value.isEmpty }, uniquingKeysWith: { _, newest in newest })
@@ -1375,7 +1395,8 @@ struct ContentView: View {
         }
     }
 
-    private func bodyDiagram(_ appearance: BodyAppearance, alignsToBottom: Bool = false) -> some View {
+    private func bodyDiagram(_ appearance: BodyAppearance, alignsToBottom: Bool = false,
+                             showsMarkers: Bool = true) -> some View {
         GeometryReader { geometry in
             let center = geometry.size.width / 2
             // Each figure fits within the central 40% of the image height in width.
@@ -1407,13 +1428,15 @@ struct ContentView: View {
                     .accessibilityHidden(true)
                     .allowsHitTesting(false)
 
-                ForEach(BodyOrgan.allCases, id: \.self) { organ in
-                    organMarker(organ)
-                        .opacity(selectedOrgan == nil ? 1 : 0)
-                        .position(
-                            x: center + height * organ.markerPosition.x,
-                            y: top + height * organ.markerPosition.y
-                        )
+                if showsMarkers {
+                    ForEach(BodyOrgan.allCases, id: \.self) { organ in
+                        organMarker(organ)
+                            .opacity(selectedOrgan == nil ? 1 : 0)
+                            .position(
+                                x: center + height * organ.markerPosition.x,
+                                y: top + height * organ.markerPosition.y
+                            )
+                    }
                 }
             }
             .frame(width: geometry.size.width, height: geometry.size.height)
@@ -1695,7 +1718,50 @@ struct ContentView: View {
             Section("Konto") {
                 if let email { Text(email).textSelection(.enabled) }
                 if isBeta { Text("Beta-login").foregroundStyle(.secondary) }
+                if !isBeta {
+                    Button("Sätt eller byt lösenord") { showsPasswordEditor = true }
+                        .disabled(isDeletingAccount)
+                }
                 Button("Logga ut") { Task { await signOut() } }
+                    .disabled(isDeletingAccount)
+                if !isBeta {
+                    Button(role: .destructive) {
+                        showsAccountDeletion = true
+                    } label: {
+                        HStack {
+                            Text("Radera konto")
+                            if isDeletingAccount { Spacer(); ProgressView() }
+                        }
+                    }
+                    .disabled(isDeletingAccount)
+                    .confirmationDialog("Radera ditt GoHealth-konto?", isPresented: $showsAccountDeletion, titleVisibility: .visible) {
+                        Button("Radera konto", role: .destructive) {
+                            Task {
+                                isDeletingAccount = true
+                                let deleted = await deleteAccount()
+                                isDeletingAccount = false
+                                if !deleted { showsAccountDeletionError = true }
+                            }
+                        }
+                        Button("Avbryt", role: .cancel) {}
+                    } message: {
+                        Text("Din inloggning, profil, avatar och sparade data på den här iPhonen raderas permanent. Det går inte att ångra. Om du är registrerad hos en mottagning sparar vårdgivaren din journal enligt patientdatalagen. Dina data i Apple Hälsa påverkas inte.")
+                    }
+                }
+            }
+            .sheet(isPresented: $showsPasswordEditor) {
+                PasswordSetupSheet(save: setPassword) { passwordSaved = true }
+                    .presentationDetents([.medium])
+            }
+            .alert("Lösenordet är sparat", isPresented: $passwordSaved) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text("Nästa gång kan du logga in med din e-postadress och ditt lösenord.")
+            }
+            .alert("Kontot kunde inte raderas", isPresented: $showsAccountDeletionError) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text("Kontrollera anslutningen och försök igen.")
             }
             Section("Profil") {
                 NavigationLink("Hälsoprofil") {
@@ -2519,3 +2585,55 @@ struct MetricHistoryView: View {
     }
 }
 
+/// Lets a signed-in user set a password, so the account can also be opened with e-mail and password.
+private struct PasswordSetupSheet: View {
+    let save: (String) async -> Bool
+    let saved: () -> Void
+    @Environment(\.dismiss) private var dismiss
+    @State private var password = ""
+    @State private var repeated = ""
+    @State private var failed = false
+    @State private var isSaving = false
+
+    private var mismatch: Bool { !repeated.isEmpty && password != repeated }
+    private var valid: Bool { password.count >= 10 && password == repeated }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    SecureField("Nytt lösenord", text: $password)
+                        .textContentType(.newPassword)
+                    SecureField("Upprepa lösenordet", text: $repeated)
+                        .textContentType(.newPassword)
+                } footer: {
+                    if mismatch {
+                        Text("Lösenorden är inte lika.").foregroundStyle(.red)
+                    } else {
+                        Text("Minst 10 tecken. Du kan fortfarande logga in med e-postlänk.")
+                    }
+                }
+                if failed {
+                    Text("Lösenordet kunde inte sparas. Försök igen.").font(.footnote).foregroundStyle(.red)
+                }
+            }
+            .navigationTitle("Lösenord")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Avbryt") { dismiss() } }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button(isSaving ? "Sparar…" : "Spara") {
+                        isSaving = true
+                        failed = false
+                        Task {
+                            let ok = await save(password)
+                            isSaving = false
+                            if ok { dismiss(); saved() } else { failed = true }
+                        }
+                    }
+                    .disabled(!valid || isSaving)
+                }
+            }
+        }
+    }
+}

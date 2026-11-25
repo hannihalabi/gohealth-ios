@@ -29,8 +29,11 @@
 		EBAA08000000000000000001 /* VaccinationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EBAA08000000000000000002 /* VaccinationView.swift */; };
 		EBAA08000000000000000003 /* TravelVaccinationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EBAA08000000000000000004 /* TravelVaccinationView.swift */; };
 		EBAA09000000000000000001 /* CareMessageCenter.swift in Sources */ = {isa = PBXBuildFile; fileRef = EBAA09000000000000000002 /* CareMessageCenter.swift */; };
+		C1A5A1000000000000000001 /* HealthAssistant.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1A5A1000000000000000002 /* HealthAssistant.swift */; };
 		EBAA0A000000000000000001 /* HealthSummaryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EBAA0A000000000000000002 /* HealthSummaryView.swift */; };
+		EBAA0B000000000000000001 /* HealthGradePreview.swift in Sources */ = {isa = PBXBuildFile; fileRef = EBAA0B000000000000000002 /* HealthGradePreview.swift */; };
 		EBFF01000000000000000001 /* Spirometry.swift in Sources */ = {isa = PBXBuildFile; fileRef = EBFF01000000000000000002 /* Spirometry.swift */; };
+		AABBCCDDEE00000000000105 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = AABBCCDDEE00000000000106 /* PrivacyInfo.xcprivacy */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -59,8 +62,12 @@
 		EBAA08000000000000000002 /* VaccinationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VaccinationView.swift; sourceTree = "<group>"; };
 		EBAA08000000000000000004 /* TravelVaccinationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TravelVaccinationView.swift; sourceTree = "<group>"; };
 		EBAA09000000000000000002 /* CareMessageCenter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CareMessageCenter.swift; sourceTree = "<group>"; };
+		C1A5A1000000000000000002 /* HealthAssistant.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthAssistant.swift; sourceTree = "<group>"; };
 		EBAA0A000000000000000002 /* HealthSummaryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthSummaryView.swift; sourceTree = "<group>"; };
+		EBAA0B000000000000000002 /* HealthGradePreview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthGradePreview.swift; sourceTree = "<group>"; };
 		EBFF01000000000000000002 /* Spirometry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Spirometry.swift; sourceTree = "<group>"; };
+		AABBCCDDEE00000000000106 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		AABBCCDDEE00000000000107 /* GoHealth-Release.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "GoHealth-Release.entitlements"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -114,12 +121,16 @@
 				EBAA08000000000000000002 /* VaccinationView.swift */,
 				EBAA08000000000000000004 /* TravelVaccinationView.swift */,
 				EBAA09000000000000000002 /* CareMessageCenter.swift */,
+				C1A5A1000000000000000002 /* HealthAssistant.swift */,
 				EBAA0A000000000000000002 /* HealthSummaryView.swift */,
+				EBAA0B000000000000000002 /* HealthGradePreview.swift */,
 				EBFF01000000000000000002 /* Spirometry.swift */,
 				AABBCCDDEE00000000000002 /* RecoveryDemoView.swift */,
 				AABBCCDDEE00000000000004 /* RecoveryDemo */,
 				9AC3B5AD93CBC0305C62F78F /* Info.plist */,
+				AABBCCDDEE00000000000106 /* PrivacyInfo.xcprivacy */,
 				D696C7787D83ED53626ACDA4 /* GoHealth.entitlements */,
+				AABBCCDDEE00000000000107 /* GoHealth-Release.entitlements */,
 			);
 			path = GoHealth;
 			sourceTree = "<group>";
@@ -194,6 +205,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				AABBCCDDEE00000000000105 /* PrivacyInfo.xcprivacy in Resources */,
 				0B429B75309EC6A700FB37C4 /* Assets.xcassets in Resources */,
 				AABBCCDDEE00000000000003 /* RecoveryDemo in Resources */,
 			);
@@ -244,7 +256,9 @@
 				EBAA08000000000000000001 /* VaccinationView.swift in Sources */,
 				EBAA08000000000000000003 /* TravelVaccinationView.swift in Sources */,
 				EBAA09000000000000000001 /* CareMessageCenter.swift in Sources */,
+				C1A5A1000000000000000001 /* HealthAssistant.swift in Sources */,
 				EBAA0A000000000000000001 /* HealthSummaryView.swift in Sources */,
+				EBAA0B000000000000000001 /* HealthGradePreview.swift in Sources */,
 				EBFF01000000000000000001 /* Spirometry.swift in Sources */,
 				EBCC01000000000000000001 /* ClinicalRecords.swift in Sources */,
 				EBCC04000000000000000001 /* ClinicalSyncOutbox.swift in Sources */,
@@ -315,12 +329,12 @@
 				INFOPLIST_FILE = "GoHealth/Info-Debug.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = GoHealth;
 				INFOPLIST_KEY_NSCameraUsageDescription = "GoHealth använder kameran för tre helkroppsbilder till din 3D-avatar. Bilderna bearbetas på den här iPhonen.";
-				INFOPLIST_KEY_NSHealthShareUsageDescription = "GoHealth läser mätningar från Apple Hälsa för att visa din hälsa. Du väljer vilka mätningar som delas med ditt vårdteam. Biologiskt kön används för att visa rätt kroppsfigur.";
+				INFOPLIST_KEY_NSHealthShareUsageDescription = "GoHealth läser dina mätningar från Apple Hälsa och använder biologiskt kön för att visa rätt kroppsfigur. Hälsouppgifterna stannar på din iPhone.";
 				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "GoHealth ansluter till den lokala bildtjänsten för syntetisk bilddiagnostik i simulatorn.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
-				MARKETING_VERSION = 0.1.0;
+				MARKETING_VERSION = 1.0.0;
 				PRODUCT_BUNDLE_IDENTIFIER = se.hemlakare.gohealth;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
@@ -382,7 +396,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
 				CLANG_ENABLE_OBJC_WEAK = YES;
-				CODE_SIGN_ENTITLEMENTS = GoHealth/GoHealth.entitlements;
+				CODE_SIGN_ENTITLEMENTS = "GoHealth/GoHealth-Release.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
@@ -390,12 +404,12 @@
 				INFOPLIST_FILE = GoHealth/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = GoHealth;
 				INFOPLIST_KEY_NSCameraUsageDescription = "GoHealth använder kameran för tre helkroppsbilder till din 3D-avatar. Bilderna bearbetas på den här iPhonen.";
-				INFOPLIST_KEY_NSHealthShareUsageDescription = "GoHealth läser mätningar från Apple Hälsa för att visa din hälsa. Du väljer vilka mätningar som delas med ditt vårdteam. Biologiskt kön används för att visa rätt kroppsfigur.";
+				INFOPLIST_KEY_NSHealthShareUsageDescription = "GoHealth läser dina mätningar från Apple Hälsa och använder biologiskt kön för att visa rätt kroppsfigur. Hälsouppgifterna stannar på din iPhone.";
 				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "GoHealth ansluter till den lokala bildtjänsten för syntetisk bilddiagnostik i simulatorn.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
-				MARKETING_VERSION = 0.1.0;
+				MARKETING_VERSION = 1.0.0;
 				PRODUCT_BUNDLE_IDENTIFIER = se.hemlakare.gohealth;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;

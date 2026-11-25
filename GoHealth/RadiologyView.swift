@@ -284,6 +284,10 @@ struct RadiologyView: View {
     @ObservedObject private var clinical: ClinicalStore
     @State private var selection: Selection?
     @State private var archiveSelection: ClinicalRecord?
+    @State private var archiveSource: PublishedArchiveFrames?
+    @State private var archiveError: String?
+    @State private var archiveAttempt = 0
+    @State private var archiveStart = 0
     @State private var showsImporter = false
     @State private var showsConfirmation = false
     @State private var pendingFiles: [URL] = []
@@ -310,21 +314,53 @@ struct RadiologyView: View {
         return nil
     }
 
+    /// The newest published image archive, shown on top when no image server is connected.
+    private var featuredRecord: ClinicalRecord? {
+        featured == nil ? clinical.imageRecords.first(where: { $0.imageArchive != nil }) : nil
+    }
+
     private var library: some View {
         let featured = featured
         return ScrollView {
             VStack(spacing: 20) {
                 if let featured, let api = model.api {
-                    RadiologyPreview(api: api, study: featured.study, series: featured.series,
-                                     isActive: selection == nil) { index, detail in
+                    RadiologyPreview(source: api, fetchDetail: { try await api.get("v1/series/\(featured.series.id)") },
+                                     synthetic: featured.study.synthetic, studyDate: featured.study.studyDate,
+                                     series: featured.series, isActive: selection == nil && archiveSelection == nil) { index, detail in
                         selection = Selection(series: featured.series, synthetic: featured.study.synthetic,
                                               index: index, detail: detail)
                     }
                     .id(featured.series.id)
+                } else if let record = featuredRecord {
+                    // Real accounts: the newest published image archive is shown on top, like the test profile.
+                    if let source = archiveSource {
+                        RadiologyPreview(source: source, fetchDetail: { source.detail }, synthetic: false,
+                                         studyDate: "", series: source.series,
+                                         isActive: selection == nil && archiveSelection == nil) { index, _ in
+                            archiveStart = index
+                            archiveSelection = record
+                        }
+                        .id(source.series.id)
+                    } else if let message = archiveError {
+                        VStack(spacing: 10) {
+                            Label("Förhandsvisningen kunde inte hämtas", systemImage: "photo")
+                                .font(.footnote).foregroundStyle(.secondary)
+                            Text(message).font(.caption).foregroundStyle(.secondary).multilineTextAlignment(.center)
+                            Button("Försök igen") { archiveError = nil; archiveAttempt += 1 }
+                                .font(.footnote.weight(.semibold))
+                        }
+                        .padding(20)
+                    } else {
+                        VStack(spacing: 10) {
+                            ProgressView().tint(.white)
+                            Text("Hämtar bilder…").font(.footnote).foregroundStyle(.secondary)
+                        }
+                        .frame(maxWidth: .infinity, minHeight: 220)
+                    }
                 }
 
                 VStack(alignment: .leading, spacing: 16) {
-                    ForEach(clinical.imageRecords) { record in
+                    ForEach(clinical.imageRecords.filter { $0.id != featuredRecord?.id }) { record in
                         if let archive = record.imageArchive {
                             Button { archiveSelection = record } label: {
                                 HStack(spacing: 14) {
@@ -506,7 +542,9 @@ struct RadiologyView: View {
         .fullScreenCover(item: $archiveSelection) { record in
             if let archive = record.imageArchive {
                 NavigationStack {
-                    PublishedImageArchiveView(record: record, archive: archive, download: clinical.downloadArchive)
+                    PublishedImageArchiveView(record: record, archive: archive, download: clinical.downloadArchive,
+                                              preloaded: record.id == featuredRecord?.id ? archiveSource : nil,
+                                              startingIndex: record.id == featuredRecord?.id ? archiveStart : 0)
                         .toolbar {
                             ToolbarItem(placement: .cancellationAction) {
                                 Button("Stäng") { archiveSelection = nil }
@@ -517,6 +555,17 @@ struct RadiologyView: View {
         }
         .task { if model.api != nil || isBeta { await model.load() } }
         .task { await clinical.refresh() }
+        .task(id: "\(featuredRecord?.id.uuidString ?? "")-\(archiveAttempt)") {
+            // Download and unpack the newest archive for the preview. Cancelled when the screen closes.
+            guard let record = featuredRecord, let archive = record.imageArchive, archiveSource == nil else { return }
+            do {
+                archiveSource = try await PublishedArchiveFrames.load(record: record, attachment: archive, download: clinical.downloadArchive)
+                archiveError = nil
+            } catch {
+                guard !Task.isCancelled else { return }
+                archiveError = PublishedArchiveFrames.message(for: error)
+            }
+        }
         .fileImporter(isPresented: $showsImporter, allowedContentTypes: [.zip, .data], allowsMultipleSelection: true) { result in
             switch result {
             case .success(let urls): pendingFiles = urls; showsConfirmation = !urls.isEmpty
@@ -540,8 +589,10 @@ struct RadiologyView: View {
 }
 
 private struct RadiologyPreview: View {
-    let api: RadiologyAPI
-    let study: ImagingStudy
+    let source: any ImagingFrameSource
+    let fetchDetail: () async throws -> ImagingSeriesDetail
+    let synthetic: Bool
+    let studyDate: String
     let series: ImagingSeries
     let isActive: Bool
     let open: (Int, ImagingSeriesDetail?) -> Void
@@ -620,12 +671,12 @@ private struct RadiologyPreview: View {
 
     private var controls: some View {
         VStack(alignment: .leading, spacing: 6) {
-            if !study.synthetic && !series.isPreview {
+            if !synthetic && !series.isPreview {
                 Text(series.description.isEmpty ? series.modality : series.description)
                     .font(.headline)
                     .accessibilityAddTraits(.isHeader)
-                if !study.studyDate.isEmpty {
-                    Text(study.studyDate).font(.caption).foregroundStyle(.secondary)
+                if !studyDate.isEmpty {
+                    Text(studyDate).font(.caption).foregroundStyle(.secondary)
                 }
             }
 
@@ -642,7 +693,7 @@ private struct RadiologyPreview: View {
                 if series.isPreview {
                     Text("Visningskopior").accessibilityLabel("Testbilder, visningskopior")
                 }
-                else if study.synthetic { Text("Syntetiska bilder") }
+                else if synthetic { Text("Syntetiska bilder") }
             }
             .font(.caption.weight(.medium).monospacedDigit())
             .foregroundStyle(.secondary)
@@ -683,7 +734,7 @@ private struct RadiologyPreview: View {
             if let detail {
                 loaded = detail
             } else {
-                loaded = try await api.get("v1/series/\(series.id)")
+                loaded = try await fetchDetail()
                 try Task.checkCancellation()
                 guard !loaded.frames.isEmpty else {
                     error = "Bildserien innehåller inga bilder."
@@ -693,7 +744,7 @@ private struct RadiologyPreview: View {
                 detail = loaded
             }
             try Task.checkCancellation()
-            playback.prepare(api: api, frames: loaded.frames, window: .standard, preview: series.isPreview,
+            playback.prepare(api: source, frames: loaded.frames, window: .standard, preview: series.isPreview,
                              index: Int(index), preloadWholeSeries: false)
         } catch {
             if !Task.isCancelled { self.error = error.localizedDescription }

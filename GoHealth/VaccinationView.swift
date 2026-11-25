@@ -6,8 +6,11 @@ struct VaccinationRecord: Codable, Identifiable {
     let date: Date
     let location: String
     var planned: Bool? = nil
+    // Published by the care team; shown read-only and never stored in the local file.
+    var careTeam: Bool? = nil
 
     var isPlanned: Bool { planned == true }
+    var isCareTeam: Bool { careTeam == true }
 
     var seriesKey: String {
         let key = vaccine.split(whereSeparator: \.isWhitespace).joined(separator: " ")
@@ -82,6 +85,8 @@ struct VaccinationSeries: Identifiable {
 @MainActor
 final class VaccinationStore: ObservableObject {
     @Published private(set) var records: [VaccinationRecord] = []
+    private var local: [VaccinationRecord] = []
+    private var careTeam: [VaccinationRecord] = []
     @Published private(set) var isLoaded = false
     @Published private(set) var loadFailed = false
 
@@ -92,7 +97,8 @@ final class VaccinationStore: ObservableObject {
         self.accountID = accountID
         self.isBeta = isBeta
         if isBeta {
-            records = VaccinationRecord.demoRecords
+            local = VaccinationRecord.demoRecords
+            records = local
             isLoaded = true
         }
     }
@@ -101,7 +107,8 @@ final class VaccinationStore: ObservableObject {
         guard !isLoaded else { return }
         do {
             let url = try directory().appendingPathComponent(filename)
-            records = try JSONDecoder().decode([VaccinationRecord].self, from: Data(contentsOf: url))
+            local = try JSONDecoder().decode([VaccinationRecord].self, from: Data(contentsOf: url))
+            records = local + careTeam
             isLoaded = true
         } catch let error as CocoaError where error.code == .fileReadNoSuchFile {
             isLoaded = true
@@ -112,11 +119,27 @@ final class VaccinationStore: ObservableObject {
     }
 
     func save(_ record: VaccinationRecord) throws {
-        try replaceRecords(records.filter { $0.id != record.id } + [record])
+        try replaceRecords(local.filter { $0.id != record.id } + [record])
     }
 
     func remove(_ record: VaccinationRecord) throws {
-        try replaceRecords(records.filter { $0.id != record.id })
+        try replaceRecords(local.filter { $0.id != record.id })
+    }
+
+    // Vaccinations published by the care team in the clinician portal.
+    func setCareTeam(_ clinical: [ClinicalRecord]) {
+        careTeam = clinical.compactMap { item in
+            guard item.kind == "vaccination", let vaccine = item.payload.vaccine,
+                  !vaccine.trimmingCharacters(in: .whitespaces).isEmpty else { return nil }
+            // The dose is the calendar day entered by the clinician, kept as written.
+            let parts = item.payload.sampledAt.prefix(10).split(separator: "-").compactMap { Int($0) }
+            guard parts.count == 3,
+                  let date = VaccinationRecord.calendar.date(from: DateComponents(year: parts[0], month: parts[1], day: parts[2]))
+            else { return nil }
+            let place = [item.payload.location, item.payload.source].compactMap { $0 }.first { !$0.isEmpty } ?? "Vårdteamet"
+            return VaccinationRecord(id: item.id, vaccine: vaccine, date: date, location: place, careTeam: true)
+        }
+        records = local + careTeam
     }
 
     private var filename: String { "\(accountID.uuidString).json" }
@@ -139,7 +162,8 @@ final class VaccinationStore: ObservableObject {
             try JSONEncoder().encode(updated).write(to: folder.appendingPathComponent(filename),
                                                      options: [.atomic, .completeFileProtection])
         }
-        records = updated
+        local = updated
+        records = local + careTeam
     }
 }
 
@@ -396,7 +420,7 @@ struct VaccinationView: View {
         let record = dose.record
         let doseTitle = record.isPlanned ? "Planerad dos \(dose.number)" : "Dos \(dose.number)"
         return Button {
-            editing = EditSelection(record: record)
+            if !record.isCareTeam { editing = EditSelection(record: record) }
         } label: {
             HStack(spacing: 12) {
                 VStack(alignment: .leading, spacing: 1) {

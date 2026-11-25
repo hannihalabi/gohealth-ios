@@ -1,4 +1,5 @@
 import AuthenticationServices
+import CryptoKit
 import Supabase
 import SwiftUI
 
@@ -24,9 +25,18 @@ struct GoHealthApp: App {
                         givenName: account.givenName,
                         updateDisplayName: account.updateDisplayName,
                         signOut: account.signOut,
+                        deleteAccount: account.deleteAccount,
+                        setPassword: account.setPassword,
                         betaPreferences: account.betaPreferences,
                         imagingAccessToken: { try await account.imagingAccessToken(for: accountID) },
-                        fetchMessages: { try await account.careMessages(for: accountID) },
+                        messaging: CareMessaging(
+                            fetch: { try await account.careInbox(for: accountID) },
+                            send: { try await account.sendCareMessage($0, for: accountID) },
+                            markRead: { try await account.markCareMessagesRead(for: accountID) },
+                            slots: { try await account.careBookingSlots($0, for: accountID) },
+                            book: { try await account.bookCareTime($0, slot: $1, for: accountID) },
+                            unbook: { try await account.unbookCareTime($0, for: accountID) }
+                        ),
                         fetchClinicalRecords: { try await account.clinicalRecords(for: accountID) },
                         uploadClinicalVitals: { try await account.uploadVitals($0, for: accountID) },
                         downloadClinicalArchive: { try await account.clinicalArchive($0, for: accountID) }
@@ -143,40 +153,62 @@ private final class GoHealthAccount: ObservableObject {
         guard user?.id == accountID else { throw URLError(.userAuthenticationRequired) }
     }
 
-    func careMessages(for accountID: UUID) async throws -> [CareMessage] {
+    /// The conversation with the care team, through the server functions (never the table directly).
+    func careInbox(for accountID: UUID) async throws -> CareInbox {
+        try ensureCareAccount(accountID)
+        let inbox: CareInbox = try await client.rpc("gohealth_messages").execute().value
+        try ensureCareAccount(accountID)
+        return inbox
+    }
+
+    func sendCareMessage(_ body: String, for accountID: UUID) async throws -> CareInbox {
+        try ensureCareAccount(accountID)
+        let inbox: CareInbox = try await client.rpc("gohealth_send_message", params: ["p_body": body]).execute().value
+        try ensureCareAccount(accountID)
+        return inbox
+    }
+
+    func markCareMessagesRead(for accountID: UUID) async throws -> CareInbox {
+        try ensureCareAccount(accountID)
+        let inbox: CareInbox = try await client.rpc("gohealth_mark_messages_read").execute().value
+        try ensureCareAccount(accountID)
+        return inbox
+    }
+
+    /// The clinician's free times for a booking request in the conversation.
+    func careBookingSlots(_ booking: UUID, for accountID: UUID) async throws -> [CareSlot] {
+        try ensureCareAccount(accountID)
+        let result: CareSlots = try await client.rpc("gohealth_booking_slots", params: ["p_booking": booking.uuidString]).execute().value
+        try ensureCareAccount(accountID)
+        return result.slots
+    }
+
+    func bookCareTime(_ booking: UUID, slot: UUID, for accountID: UUID) async throws -> CareInbox {
+        try ensureCareAccount(accountID)
+        let inbox: CareInbox = try await client.rpc("gohealth_book_time",
+                                                    params: ["p_booking": booking.uuidString, "p_slot": slot.uuidString]).execute().value
+        try ensureCareAccount(accountID)
+        return inbox
+    }
+
+    func unbookCareTime(_ booking: UUID, for accountID: UUID) async throws -> CareInbox {
+        try ensureCareAccount(accountID)
+        let inbox: CareInbox = try await client.rpc("gohealth_unbook_time", params: ["p_booking": booking.uuidString]).execute().value
+        try ensureCareAccount(accountID)
+        return inbox
+    }
+
+    private func ensureCareAccount(_ accountID: UUID) throws {
+        try Task.checkCancellation()
         guard betaPreferences == nil, user?.id == accountID else {
             throw URLError(.userAuthenticationRequired)
-        }
-        var messages: [CareMessage] = []
-        let pageSize = 100
-        while true {
-            try Task.checkCancellation()
-            let page: [CareMessage] = try await client
-                .from("care_messages")
-                .select("id,provider_name,booking_url,created_at,resolved_at")
-                .eq("patient_id", value: accountID)
-                .order("created_at", ascending: false)
-                .order("id", ascending: false)
-                .range(from: messages.count, to: messages.count + pageSize - 1)
-                .execute()
-                .value
-            guard user?.id == accountID else { throw URLError(.userAuthenticationRequired) }
-            messages.append(contentsOf: page)
-            if page.count < pageSize { return messages }
         }
     }
 
     private static let callbackURL = URL(string: "gohealth://auth/callback")!
-    private static let backendURL: URL = {
-        if let value = Bundle.main.object(forInfoDictionaryKey: "GoHealthSupabaseURL") as? String,
-           let url = URL(string: value), url.scheme == "https", url.host != nil {
-            return url
-        }
-        return URL(string: "https://example.invalid")!
-    }()
     private let client = SupabaseClient(
-        supabaseURL: backendURL,
-        supabaseKey: Bundle.main.object(forInfoDictionaryKey: "GoHealthSupabasePublishableKey") as? String ?? "",
+        supabaseURL: URL(string: "https://eobycmemrstuivpchqcu.supabase.co")!,
+        supabaseKey: "sb_publishable_99qA4y2mnlVBwLXKb5NTHQ_rMozPk-1",
         options: .init(
             auth: .init(redirectToURL: callbackURL, flowType: .pkce),
             global: .init(session: URLSession(configuration: .ephemeral))
@@ -235,14 +267,35 @@ private final class GoHealthAccount: ObservableObject {
     }
 
     func sendEmailLink(to email: String) async -> Bool {
-        guard Self.backendURL.host != "example.invalid",
-              let key = Bundle.main.object(forInfoDictionaryKey: "GoHealthSupabasePublishableKey") as? String,
-              !key.isEmpty else {
-            errorMessage = "Ange Supabase-adress och publik klientnyckel i Xcodes bygginställningar."
-            return false
-        }
-        return await run(failure: "Länken kunde inte skickas. Kontrollera e-postadressen och försök igen om en stund.") {
+        await run(failure: "Länken kunde inte skickas. Kontrollera e-postadressen och försök igen om en stund.") {
             try await client.auth.signInWithOTP(email: email)
+        }
+    }
+
+    func clearError() { errorMessage = nil }
+
+    /// Signs in with the code from the e-mail. Works in any mail app, with no link to open.
+    func verifyEmailCode(email: String, code: String) async -> Bool {
+        await run(failure: "Koden stämmer inte eller har gått ut. Be om en ny kod.") {
+            try await client.auth.verifyOTP(email: email, token: code, type: .email)
+        }
+    }
+
+    /// Password sign-in is only for accounts that already exist: it never creates one.
+    func signIn(email: String, password: String) async -> Bool {
+        await run(failure: "E-postadressen eller lösenordet stämmer inte. Har du inget lösenord än, använd e-postlänken.") {
+            try await client.auth.signIn(email: email, password: password)
+        }
+    }
+
+    /// Sets a password on the signed-in account, so it can be used for sign-in next time.
+    func setPassword(_ password: String) async -> Bool {
+        guard password.count >= 10 else { return false }
+        #if DEBUG
+        if betaSession != nil { return true }
+        #endif
+        return await run(failure: "Lösenordet kunde inte sparas.") {
+            try await client.auth.update(user: UserAttributes(password: password))
         }
     }
 
@@ -251,6 +304,84 @@ private final class GoHealthAccount: ObservableObject {
             try await client.auth.signInWithOAuth(provider: .google, queryParams: [("prompt", "select_account")]) { session in
                 session.prefersEphemeralWebBrowserSession = true
             }
+        }
+    }
+
+    // Sign in with Apple (guideline 4.8): the raw nonce goes to Supabase, its SHA-256 hash to Apple.
+    private var appleNonce: String?
+
+    func prepareAppleRequest(_ request: ASAuthorizationAppleIDRequest) {
+        let nonce = Self.randomNonce()
+        appleNonce = nonce
+        request.requestedScopes = [.fullName, .email]
+        request.nonce = SHA256.hash(data: Data(nonce.utf8)).map { String(format: "%02x", $0) }.joined()
+    }
+
+    func finishAppleSignIn(_ result: Result<ASAuthorization, Error>) async {
+        let nonce = appleNonce
+        appleNonce = nil
+        let failure = "Apple-inloggningen kunde inte slutföras. Försök igen eller använd e-post."
+        switch result {
+        case .failure(let error as ASAuthorizationError) where error.code == .canceled:
+            return
+        case .failure:
+            errorMessage = failure
+        case .success(let authorization):
+            guard let credential = authorization.credential as? ASAuthorizationAppleIDCredential,
+                  let tokenData = credential.identityToken,
+                  let idToken = String(data: tokenData, encoding: .utf8),
+                  let nonce else {
+                errorMessage = failure
+                return
+            }
+            // Apple only shares the name on the very first sign-in, so keep it right away.
+            let name = [credential.fullName?.givenName, credential.fullName?.familyName]
+                .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
+                .joined(separator: " ")
+            _ = await run(failure: failure) {
+                let session = try await client.auth.signInWithIdToken(
+                    credentials: OpenIDConnectCredentials(provider: .apple, idToken: idToken, nonce: nonce)
+                )
+                if !name.isEmpty, session.user.userMetadata["display_name"]?.stringValue == nil {
+                    try await client.auth.update(user: UserAttributes(data: ["display_name": .string(name)]))
+                }
+            }
+        }
+    }
+
+    private static func randomNonce(length: Int = 32) -> String {
+        let charset = Array("0123456789ABCDEFGHIJKLMNOPQRSTUVXYZabcdefghijklmnopqrstuvwxyz-._")
+        var generator = SystemRandomNumberGenerator()
+        return String((0..<length).map { _ in charset.randomElement(using: &generator)! })
+    }
+
+    // App Store 5.1.1(v): the patient deletes the account from the app. The server keeps the
+    // care provider's clinical record (patientdatalagen) but detaches it from the deleted login.
+    func deleteAccount() async -> Bool {
+        guard betaPreferences == nil, let id = user?.id else { return false }
+        let deleted = await run(failure: "Kontot kunde inte raderas. Kontrollera anslutningen och försök igen.") {
+            try await client.rpc("gohealth_delete_account").execute()
+        }
+        guard deleted else { return false }
+        Self.removeLocalData(for: id)
+        try? await client.auth.signOut(scope: .local)
+        user = nil
+        return true
+    }
+
+    // Every per-account preference key and file on this iPhone carries the account ID.
+    private static func removeLocalData(for id: UUID) {
+        let marker = id.uuidString
+        let defaults = UserDefaults.standard
+        for key in defaults.dictionaryRepresentation().keys where key.contains(marker) {
+            defaults.removeObject(forKey: key)
+        }
+        let manager = FileManager.default
+        guard let support = manager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first,
+              let files = manager.enumerator(at: support, includingPropertiesForKeys: nil) else { return }
+        for case let file as URL in files where file.lastPathComponent.contains(marker) {
+            try? manager.removeItem(at: file)
         }
     }
 
@@ -304,6 +435,11 @@ private struct GoHealthSignInView: View {
     @FocusState private var emailFocused: Bool
     @State private var email = ""
     @State private var linkSent = false
+    @State private var code = ""
+    @FocusState private var codeFocused: Bool
+    @State private var usesPassword = false
+    @State private var password = ""
+    @FocusState private var passwordFocused: Bool
     @State private var phase: Phase
     @State private var scanStart: Date?
     @State private var scanComplete = false
@@ -380,7 +516,7 @@ private struct GoHealthSignInView: View {
                     .font(.system(.title2, design: .serif).weight(.semibold))
                     .accessibilityAddTraits(.isHeader)
 
-                Text("Logga in eller skapa ett konto.")
+                Text(usesPassword ? "Logga in med ditt lösenord." : "Logga in eller skapa ett konto.")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             }
@@ -411,19 +547,126 @@ private struct GoHealthSignInView: View {
             }
             .disabled(account.isBusy)
 
-            Button {
-                let address = email.trimmingCharacters(in: .whitespacesAndNewlines)
-                Task { linkSent = await account.sendEmailLink(to: address) }
-            } label: {
-                Text("Skicka inloggningslänk")
-            }
-            .buttonStyle(GoHealthSignInButtonStyle(accent: accent, prominent: true))
-            .disabled(account.isBusy || !email.contains("@"))
+            if usesPassword {
+                HStack(spacing: 10) {
+                    Image(systemName: "lock")
+                        .foregroundStyle(.secondary)
+                        .accessibilityHidden(true)
+                    SecureField("Lösenord", text: $password)
+                        .textContentType(.password)
+                        .focused($passwordFocused)
+                        .submitLabel(.go)
+                        .onSubmit(submitPassword)
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 12)
+                .frame(minHeight: 48)
+                .background(.white.opacity(0.62), in: RoundedRectangle(cornerRadius: 12))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 12)
+                        .strokeBorder(passwordFocused ? accent.opacity(0.55) : Color.primary.opacity(0.12))
+                        .allowsHitTesting(false)
+                }
+                .disabled(account.isBusy)
 
-            if linkSent {
-                Label("Öppna länken i mejlet på den här iPhonen för att fortsätta.", systemImage: "envelope")
-                    .font(.footnote).foregroundStyle(.secondary)
+                Button(action: submitPassword) {
+                    Text("Logga in")
+                }
+                .buttonStyle(GoHealthSignInButtonStyle(accent: accent, prominent: true))
+                .disabled(account.isBusy || !email.contains("@") || password.isEmpty)
+
+                Button {
+                    usesPassword = false
+                    password = ""
+                    account.clearError()
+                } label: {
+                    Text("Använd e-postlänk i stället")
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(accent)
+                        .frame(maxWidth: .infinity, minHeight: 40)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+            } else {
+                Button {
+                    let address = email.trimmingCharacters(in: .whitespacesAndNewlines)
+                    Task { linkSent = await account.sendEmailLink(to: address) }
+                } label: {
+                    Text("Fortsätt med e-post")
+                }
+                .buttonStyle(GoHealthSignInButtonStyle(accent: accent, prominent: true))
+                .disabled(account.isBusy || !email.contains("@"))
+
+                if linkSent {
+                    Label("Vi har skickat ett mejl. Skriv in koden från mejlet här, eller tryck på länken i det.", systemImage: "envelope")
+                        .font(.footnote).foregroundStyle(.secondary)
+
+                    HStack(spacing: 10) {
+                        Image(systemName: "number")
+                            .foregroundStyle(.secondary)
+                            .accessibilityHidden(true)
+                        TextField("Kod från mejlet", text: $code)
+                            .keyboardType(.numberPad)
+                            .textContentType(.oneTimeCode)
+                            .focused($codeFocused)
+                            .onChange(of: code) { _, value in
+                                let digits = String(value.filter(\.isNumber).prefix(10))
+                                if digits != value { code = digits }
+                                // The e-mail code has 8 digits; the button also works for shorter codes.
+                                if digits.count == 8 && !account.isBusy { submitCode() }
+                            }
+                    }
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 12)
+                    .frame(minHeight: 48)
+                    .background(.white.opacity(0.62), in: RoundedRectangle(cornerRadius: 12))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 12)
+                            .strokeBorder(codeFocused ? accent.opacity(0.55) : Color.primary.opacity(0.12))
+                            .allowsHitTesting(false)
+                    }
+                    .disabled(account.isBusy)
+
+                    Button(action: submitCode) {
+                        Text("Bekräfta kod")
+                    }
+                    .buttonStyle(GoHealthSignInButtonStyle(accent: accent, prominent: true))
+                    .disabled(account.isBusy || code.count < 6)
+                } else {
+                    Text("Har du redan ett konto loggas du in, annars skapas ett nytt.")
+                        .font(.footnote).foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .center)
+                        .multilineTextAlignment(.center)
+                }
+
+                Button {
+                    usesPassword = true
+                    linkSent = false
+                    account.clearError()
+                } label: {
+                    Text("Logga in med lösenord")
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(accent)
+                        .frame(maxWidth: .infinity, minHeight: 40)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
             }
+            #if !DEBUG
+            // Release only: the Sign in with Apple entitlement is in GoHealth-Release.entitlements,
+            // because free personal development teams cannot sign it into Debug builds.
+            SignInWithAppleButton(.continue) { request in
+                linkSent = false
+                account.prepareAppleRequest(request)
+            } onCompletion: { result in
+                Task { await account.finishAppleSignIn(result) }
+            }
+            .signInWithAppleButtonStyle(.black)
+            .frame(minHeight: 48)
+            .clipShape(RoundedRectangle(cornerRadius: 12))
+            .disabled(account.isBusy)
+            #endif
+
             Button {
                 linkSent = false
                 Task { await account.signInWithGoogle() }
@@ -450,6 +693,23 @@ private struct GoHealthSignInView: View {
             if let message = account.errorMessage {
                 Text(message).font(.footnote).foregroundStyle(.red)
             }
+        }
+    }
+
+    private func submitCode() {
+        let address = email.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard address.contains("@"), code.count >= 6, !account.isBusy else { return }
+        let entered = code
+        Task {
+            if await account.verifyEmailCode(email: address, code: entered) { code = "" }
+        }
+    }
+
+    private func submitPassword() {
+        let address = email.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard address.contains("@"), !password.isEmpty, !account.isBusy else { return }
+        Task {
+            if await account.signIn(email: address, password: password) { password = "" }
         }
     }
 
@@ -590,4 +850,3 @@ private struct GoHealthSignInButtonStyle: ButtonStyle {
             .opacity(configuration.isPressed ? 0.78 : 1)
     }
 }
-
